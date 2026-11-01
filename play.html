@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sabe Blefar? – Celular</title>
+<link rel="stylesheet" href="/style.css">
+<style>body{margin:0}.phone{min-height:100vh;border:0;border-radius:0;max-width:520px;margin:0 auto;padding:16px}.hand .c{width:64px;height:96px}</style>
+</head>
+<body>
+<div class="phone" id="ph"></div>
+<script src="/common.js"></script>
+<script>
+let C = (location.pathname.slice(1).match(/^[A-Za-z]{4}$/) || [''])[0].toUpperCase();
+let ME = null, S = null, es = null, sel = -1, cl = '', cn = 0, TN = 6, down = false, wasMine = false, lastNud = 0;
+let JE = '', JN = localStorage.sbname || '', JC = C;
+
+try { const sv = C && JSON.parse(localStorage['sb_' + C] || 'null'); if (sv) { ME = sv; connect(); } } catch (e) {}
+
+async function join() {
+  const code = (C || JC).trim().toUpperCase();
+  if (code.length != 4) { JE = 'Digite o código de 4 letras.'; return draw(); }
+  let sv = null; try { sv = JSON.parse(localStorage['sb_' + code] || 'null'); } catch (e) {}
+  const r = await fetch('/api/join', { method: 'POST', body: JSON.stringify({ code, name: JN, token: sv && sv.token }) })
+    .then(x => x.json()).catch(() => ({ err: 'Sem conexão com o servidor.' }));
+  if (r.err) { JE = r.err; return draw(); }
+  C = code; ME = { token: r.token, name: r.name };
+  localStorage['sb_' + C] = JSON.stringify(ME); localStorage.sbname = r.name;
+  history.replaceState(null, '', '/' + C); JE = ''; connect();
+}
+function connect() {
+  if (es) es.close();
+  es = listen(`/api/stream/${C}?t=${ME.token}`, s => {
+    down = false;
+    const mine = !!s.me && s.actor == s.me.id && ['window', 'turn', 'play'].includes(s.phase);
+    if (mine && !wasMine && navigator.vibrate) navigator.vibrate(150);
+    if (s.nud && s.nud.n != lastNud) { lastNud = s.nud.n; if (s.me && s.nud.t == s.me.id && navigator.vibrate) navigator.vibrate([100, 60, 100]); }
+    wasMine = mine; if (!mine) { sel = -1; cl = ''; cn = 0; }
+    S = s; draw();
+  }, () => {
+    down = true; draw();
+    fetch('/api/room/' + C).then(r => { if (!r.ok) { es.close(); ME = null; S = null; delete localStorage['sb_' + C]; JE = 'Essa sala não existe mais.'; C = ''; history.replaceState(null, '', '/'); draw(); } });
+  });
+}
+const act = (a, x = {}) => fetch('/api/act', { method: 'POST', body: JSON.stringify({ code: C, token: ME.token, a, ...x }) });
+function pick(i) { if (S.actor == S.me.id && S.phase == 'play') { sel = i; draw(); } }
+
+function joinHTML() {
+  return `<h2 style="margin:6px 0">🃏 Sabe Blefar?</h2><p class="mu">${C ? 'Sala <b>' + C + '</b>' : 'Digite o código que aparece na TV.'}</p>
+  ${C ? '' : `<input class="in" placeholder="Código da sala (4 letras)" maxlength="4" autocapitalize="characters" value="${esc(JC)}" oninput="JC=this.value.toUpperCase()">`}
+  <input class="in" placeholder="Seu nome" maxlength="10" value="${esc(JN)}" oninput="JN=this.value">
+  <div class="warn">${JE}</div><button class="bt" onclick="join()">Entrar</button>`;
+}
+function draw() {
+  const E = $('ph');
+  if (!ME) { E.innerHTML = joinHTML(); return; }
+  if (!S) { E.innerHTML = '<p class="mu">Conectando…</p>'; return; }
+  const me = S.me, P = S.ps[me.id], ph = S.phase, q = S.pend;
+  const head = `<div class="top"><span>${P.n}</span><b>${ph == 'lobby' ? 'Sala ' + S.code : P.pts + ' pts'}</b></div>${down ? '<div class="warn">Reconectando…</div>' : ''}`;
+  if (ph == 'lobby') {
+    const host = me.id == 0;
+    E.innerHTML = head + `<p class="hi">✅ Você está na sala!</p><p class="mu">${S.ps.length} na sala: ${S.ps.map(p => p.n).join(', ')}</p>` +
+      (host ? `<p class="mu">Você é o host. Total de jogadores (bots completam):</p>
+      <select style="width:100%;padding:10px" onchange="TN=+this.value">${[4, 5, 6, 7, 8, 9, 10].map(k => `<option ${k == TN ? 'selected' : ''}>${k}</option>`).join('')}</select>
+      <button class="bt" onclick="act('start',{n:TN})">Começar partida</button>` : '<p class="mu">Aguarde: o host vai iniciar a partida.</p>');
+    return;
+  }
+  const mine = S.actor == me.id && ['window', 'turn', 'play'].includes(ph), can = mine && ph == 'play';
+  let m = '';
+  if (ph == 'over') m = `<p class="hi">${S.win == me.id ? '🏆 Você venceu!' : 'Fim de jogo: venceu ' + (S.ps[S.win] ? S.ps[S.win].n : '—')}</p>` + (me.id == 0 ? `<button class="bt" onclick="act('again')">Jogar de novo</button>` : '');
+  else if (!P.alive) m = '<p class="mu">Você foi eliminado. Assistindo à partida.</p>';
+  else if (mine && !can) {
+    const f = S.forced;
+    m = `<p class="hi">${ph == 'window' ? 'Pode acusar a jogada de' : 'Acusar a jogada de'} <b>${S.ps[q.p].n}</b>?<br><small class="mu">${ctext(q)}</small></p>${f ? '<p class="warn">Acusação obrigatória!</p>' : ''}
+    <button class="bt bad" onclick="act('accuse')">ACUSAR</button>${f ? '' : `<button class="bt2" onclick="act('pass')">${ph == 'window' ? 'Deixar passar' : 'Passar e jogar'}</button>`}`;
+  } else if (can) {
+    const ok = sel >= 0 && cl && (cl != 'e' || cn);
+    m = `<p class="mu">Sua vez! Referência: <b>${S.ref}</b>. Escolha uma carta e o que vai declarar.</p>
+    <div class="seg">${[['e', 'Exato'], ['s', 'Superior'], ['i', 'Inferior']].map(([t, l]) => `<button class="${cl == t ? 'sel' : ''}" onclick="cl='${t}';draw()">${l}</button>`).join('')}</div>
+    ${cl == 'e' ? `<div class="nums">${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].map(n => `<button class="${cn == n ? 'sel' : ''}" onclick="cn=${n};draw()">${RK[n]}</button>`).join('')}</div>` : ''}
+    <button class="bt" ${ok ? '' : 'disabled'} onclick="act('play',{i:sel,t:cl,n:cn})">Jogar carta virada</button>`;
+  } else if (ph == 'reveal') m = '<p class="mu">Olhe para a TV…</p>';
+  else m = `<p class="mu">Aguarde: ${S.ps[S.actor].n} ${ph == 'play' ? 'está jogando' : 'decide se acusa'}.</p>`;
+  const hand = me.hand.map((c, i) => face(c).replace('class="c ', `class="c ${i == sel && can ? 'sel' : ''} `).replace('<div', `<div onclick="pick(${i})"`)).join('');
+  const others = S.ps.map((p, i) => ({ p, i })).filter(x => x.i != me.id && x.p.alive);
+  E.innerHTML = head + (mine ? '<div class="tm"><i id="bar"></i></div>' : '') + m + `<div class="hand">${hand}</div>` +
+    (P.alive && ph != 'over' ? `<div class="av"><small class="mu">Avisar:</small>${others.map(x => `<button class="ch" onclick="act('nudge',{to:${x.i}})">${x.p.n}</button>`).join('')}</div>` : '');
+}
+setInterval(() => { const b = $('bar'); if (b && S) b.style.width = S.left ? Math.max(0, (S.end - Date.now()) / 300) + '%' : '0'; }, 200);
+draw();
+</script>
+</body>
+</html>

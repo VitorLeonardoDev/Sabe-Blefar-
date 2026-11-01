@@ -1,0 +1,8 @@
+{
+  "name": "sabe-blefar",
+  "version": "1.0.0",
+  "description": "Sabe Blefar? - jogo de blefe com TV + celulares",
+  "main": "server.js",
+  "scripts": { "start": "node server.js", "test": "node test.js" },
+  "engines": { "node": ">=18" }
+}

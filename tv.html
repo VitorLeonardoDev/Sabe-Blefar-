@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sabe Blefar? – TV</title>
+<link rel="stylesheet" href="/style.css">
+<style>body{background:#0f172a;margin:0}.tv{min-height:100vh;border:0;border-radius:0;padding:4vh 4vw;font-size:1.3vw}
+.tv .pl{min-width:9vw}.tv .pl b{font-size:2.4vw}.tv .ref strong{font-size:9vw}.tv .st{font-size:1.8vw}.tv .cl{font-size:1.8vw}.tv .log{font-size:1.3vw}.code{font-size:7vw}.lob h1{font-size:4vw}</style>
+</head>
+<body>
+<section class="tv" id="tv"></section>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="/common.js"></script>
+<script>
+let S = null, toastN = 0, toastUntil = 0;
+async function init() {
+  let c = sessionStorage.sbroom; // F5 na TV mantém a mesma sala
+  if (c) { const r = await fetch('/api/room/' + c).catch(() => null); if (!r || !r.ok) c = null; }
+  if (!c) { c = (await (await fetch('/api/room', { method: 'POST' })).json()).code; sessionStorage.sbroom = c; }
+  listen('/api/tv/' + c, s => { S = s; draw(); }, () => {});
+}
+function draw() {
+  const T = $('tv');
+  if (!S) { T.innerHTML = '<div class="lob"><h1>Conectando…</h1></div>'; return; }
+  if (S.phase == 'lobby') {
+    T.innerHTML = `<div class="lob"><h1>Sabe Blefar?</h1><div class="mu">No celular, acesse <b>${location.host}</b> e digite o código, ou escaneie:</div>
+    <div class="code">${S.code}</div><div id="qr" style="display:inline-block;background:#fff;padding:8px;border-radius:8px"></div>
+    <div class="pls" style="justify-content:center;margin-top:16px">${S.ps.map((p, i) => `<div class="pl"><span>${p.n}</span><small>${i ? 'conectado' : 'host'}</small></div>`).join('') || '<span class="mu">Aguardando celulares…</span>'}</div>
+    <p class="mu">${S.ps.length ? 'O host inicia a partida pelo celular.' : ''}</p></div>`;
+    if (window.QRCode) new QRCode($('qr'), { text: location.origin + '/' + S.code, width: 160, height: 160 });
+    return;
+  }
+  const ph = S.phase, q = S.pend, A = S.ps[S.actor], busy = ph != 'over' && ph != 'reveal';
+  const tag = i => i != S.actor || !busy ? '' : ph == 'window' ? '<em>pode acusar</em>' : ph == 'turn' ? '<em>vez · acusar?</em>' : '<em>jogando</em>';
+  const pls = S.ps.map((p, i) => `<div class="pl ${p.alive ? '' : 'dead'} ${i == S.actor && busy ? 'on' : ''}"><span>${p.n}</span><b>${p.pts}</b><small>${!p.alive ? 'fora' : !p.conn ? 'desconectado' : p.cards + ' cartas'}</small>${tag(i)}</div>`).join('');
+  const st = ph == 'window' ? `${A.n} pode acusar agora` : ph == 'turn' ? `Vez de ${A.n}: ${S.forced ? 'acusação obrigatória!' : 'acusar ou jogar'}` : ph == 'play' ? `${A.n} está escolhendo a carta` : '';
+  let ov = '';
+  if (S.rev) { const r = S.rev, a = S.ps[r.by], b = S.ps[r.p];
+    ov = `<div class="ov">${face(r.card).replace('class="c ', 'class="c big ')}<h2 class="${r.ok ? 'bad' : 'ok'}">${r.ok ? 'MENTIRA!' : 'VERDADE!'}</h2><div>${a.n} acusou ${b.n} · ${ctext(r)}</div><div class="mu">${r.ok ? `${a.n} +2 · ${b.n} −2` : `${a.n} −1`}</div></div>`; }
+  if (ph == 'over') { const w = S.ps[S.win]; ov = `<div class="ov"><h2 class="ok">🏆 ${w ? w.n : 'Sem vencedor'}</h2><div>venceu a partida!</div><div class="mu">O host pode jogar de novo pelo celular.</div></div>`; }
+  if (S.nud && S.nud.n != toastN) { toastN = S.nud.n; toastUntil = Date.now() + 5000; setTimeout(draw, 5100); }
+  const toast = S.nud && Date.now() < toastUntil ? `<div class="toast">👋 ${S.ps[S.nud.f].n} avisou ${S.ps[S.nud.t].n}!</div>` : '';
+  T.innerHTML = `<div class="pls">${pls}</div>
+  <div class="mid"><div class="ref"><small>REFERÊNCIA</small><strong>${S.ref}</strong><em>${RK[S.ref]}</em></div>
+  <div class="pile"><div class="c back"></div><div>${q ? `<b>${S.ps[q.p].n}</b> jogou e disse<div class="cl">${ctext(q)}</div>` : '<span class="mu">Mesa vazia</span>'}</div></div></div>
+  <div class="st">${st}</div><div class="tm"><i id="bar"></i></div>
+  <div class="log">${S.log.map(l => `<div>${l}</div>`).join('')}</div>${ov}${toast}`;
+}
+setInterval(() => { const b = $('bar'); if (b && S) b.style.width = S.left ? Math.max(0, (S.end - Date.now()) / 300) + '%' : '0'; }, 200);
+init();
+</script>
+</body>
+</html>
