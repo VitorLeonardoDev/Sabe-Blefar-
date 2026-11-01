@@ -6,12 +6,12 @@ const NAMES = ['Ana', 'Beto', 'Cris', 'Davi', 'Eva', 'Fabi', 'Gui', 'Hugo', 'Iar
 const rnd = n => Math.floor(Math.random() * n);
 const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = rnd(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 const truth = q => q.t == 'e' ? q.card.v == q.n : q.t == 's' ? q.card.v > q.rb : q.card.v < q.rb;
-const HUMAN_MS = 30000, REVEAL_MS = 6000;
+const HUMAN_MS = 30000, REVEAL_MS = 6000, TUT_LEN = 10;
 
 class Room {
   constructor(code, onChange) {
     Object.assign(this, { code, onChange, clients: new Set(), ps: [], phase: 'lobby', ref: 0, pend: null, rev: null,
-      win: null, actor: -1, cur: 0, log: [], nud: null, nn: 0, dl: 0, T: null, seen: Date.now() });
+      win: null, actor: -1, cur: 0, log: [], nud: null, nn: 0, dl: 0, tut: -1, n: 6, T: null, seen: Date.now() });
   }
   emit() { this.seen = Date.now(); this.onChange(this); }
   say(m) { this.log.unshift(m); this.log.length = Math.min(4, this.log.length); }
@@ -28,15 +28,25 @@ class Room {
     if (this.ps.some(p => p.n == name)) return { err: 'Esse nome já está na sala.' };
     const p = this.mkp(name, 0); this.ps.push(p); this.emit(); return p;
   }
-  start(n) {
-    n = Math.min(10, Math.max(4, this.ps.length, n | 0));
-    for (const x of NAMES) { if (this.ps.length >= n) break; if (!this.ps.some(p => p.n == x)) this.ps.push(this.mkp(x, 1)); }
+  start(n, tut) {
+    this.n = Math.min(10, Math.max(4, this.ps.length, n | 0));
+    if (tut) { this.phase = 'tutorial'; this.tut = -1; return this.tutGo(1); }
+    this.begin();
+  }
+  tutGo(d) { // tutorial na TV, controlado pelo host; avança sozinho a cada 12s
+    clearTimeout(this.T); this.tut = Math.max(0, this.tut + d);
+    if (this.tut >= TUT_LEN) { this.tut = -1; return this.begin(); }
+    if (this.tut < TUT_LEN - 1) this.T = setTimeout(() => this.tutGo(1), 12000 * F);
+    this.emit();
+  }
+  begin() {
+    for (const x of NAMES) { if (this.ps.length >= this.n) break; if (!this.ps.some(p => p.n == x)) this.ps.push(this.mkp(x, 1)); }
     this.deal(); this.cur = 0; this.say('Partida iniciada!'); this.startTurn();
   }
   again() {
     clearTimeout(this.T); this.ps = this.ps.filter(p => !p.bot);
     this.ps.forEach(p => Object.assign(p, { pts: 5, hand: [], alive: 1, miss: 0 }));
-    Object.assign(this, { phase: 'lobby', pend: null, rev: null, win: null, actor: -1, log: [], dl: 0 }); this.emit();
+    Object.assign(this, { phase: 'lobby', pend: null, rev: null, win: null, actor: -1, log: [], dl: 0, tut: -1, nud: null }); this.emit();
   }
   deal() {
     const d = []; for (let s = 0; s < 4; s++) for (let v = 1; v <= 13; v++) d.push({ v, s });
@@ -133,11 +143,13 @@ class Room {
   // Ação vinda de um celular. Tudo é validado aqui: o celular só "pede".
   act(id, m) {
     const P = this.ps[id]; if (!P) return;
-    if (m.a == 'start') { if (this.phase == 'lobby' && id == 0) this.start(+m.n); return; }
+    if (m.a == 'start') { if (this.phase == 'lobby' && id == 0) this.start(+m.n, !!m.tut); return; }
+    if (m.a == 'tut') { if (this.phase == 'tutorial' && id == 0 && [-1, 1, 99].includes(m.d)) this.tutGo(m.d); return; }
+    if (m.a == 'lobby') { if (id == 0 && this.phase != 'lobby') this.again(); return; }
     if (m.a == 'again') { if (this.phase == 'over' && id == 0) this.again(); return; }
     if (m.a == 'nudge') {
       const t = this.ps[m.to];
-      if (t && t.alive && P.alive && m.to != id && !['lobby', 'over'].includes(this.phase)) this.nudge(id, m.to);
+      if (t && t.alive && P.alive && m.to != id && !['lobby', 'tutorial', 'over'].includes(this.phase)) this.nudge(id, m.to);
       return;
     }
     if (this.actor != id || !P.alive) return;
@@ -153,7 +165,7 @@ class Room {
   // O que cada tela pode ver. A TV nunca recebe mãos; cada celular só recebe a própria.
   view(id) {
     const v = {
-      code: this.code, phase: this.phase, ref: this.ref, actor: this.actor, log: this.log, win: this.win, nud: this.nud,
+      code: this.code, phase: this.phase, tut: this.tut, ref: this.ref, actor: this.actor, log: this.log, win: this.win, nud: this.nud,
       left: this.dl ? Math.max(0, this.dl - Date.now()) : 0,
       forced: this.phase == 'turn' && this.ps[this.actor] && this.ps[this.actor].miss >= 2,
       ps: this.ps.map(p => ({ n: p.n, pts: p.pts, cards: p.hand.length, alive: p.alive, conn: p.conn, bot: p.bot })),
