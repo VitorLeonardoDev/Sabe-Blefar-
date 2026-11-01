@@ -12,7 +12,7 @@
 <script src="/common.js"></script>
 <script>
 let C = (location.pathname.slice(1).match(/^[A-Za-z]{4}$/) || [''])[0].toUpperCase();
-let ME = null, S = null, es = null, sel = -1, cl = '', cn = 0, TN = 6, TUTON = true, down = false, wasMine = false, lastNud = 0;
+let ME = null, S = null, es = null, sel = -1, cl = '', cn = 0, dsel = [], TN = 6, TUTON = true, down = false, wasMine = false, lastNud = 0;
 let JE = '', JN = localStorage.sbname || '', JC = C;
 
 try { const sv = C && JSON.parse(localStorage['sb_' + C] || 'null'); if (sv) { ME = sv; connect(); } } catch (e) {}
@@ -32,10 +32,10 @@ function connect() {
   if (es) es.close();
   es = listen(`/api/stream/${C}?t=${ME.token}`, s => {
     down = false;
-    const mine = !!s.me && s.actor == s.me.id && ['window', 'turn', 'play'].includes(s.phase);
+    const mine = !!s.me && ((s.actor == s.me.id && ['window', 'turn', 'play'].includes(s.phase)) || (s.phase == 'challenge' && s.ch && chActor(s) == s.me.id));
     if (mine && !wasMine && navigator.vibrate) navigator.vibrate(150);
     if (s.nud && s.nud.n != lastNud) { lastNud = s.nud.n; if (s.me && s.nud.t == s.me.id && navigator.vibrate) navigator.vibrate([100, 60, 100]); }
-    wasMine = mine; if (!mine) { sel = -1; cl = ''; cn = 0; }
+    wasMine = mine; if (!mine) { sel = -1; cl = ''; cn = 0; dsel = []; }
     S = s; draw();
   }, () => {
     down = true; draw();
@@ -43,6 +43,9 @@ function connect() {
   });
 }
 const act = (a, x = {}) => fetch('/api/act', { method: 'POST', body: JSON.stringify({ code: C, token: ME.token, a, ...x }) });
+const chActor = s => s.ch.step == 'pick' ? s.ch.tg : s.ch.step == 'guess' ? s.ch.by : -1;
+function dtoggle(n) { const k = dsel.indexOf(n); if (k >= 0) dsel.splice(k, 1); else if (dsel.length < S.ch.size) dsel.push(n); draw(); }
+function chal(to) { if (confirm(`Desafiar ${S.ps[to].n}? Se você errar, perde ${3} pontos e ${S.ps[to].n} vence a partida.`)) act('challenge', { to }); }
 function pick(i) { if (S.actor == S.me.id && S.phase == 'play') { sel = i; draw(); } }
 
 function joinHTML() {
@@ -74,6 +77,28 @@ function draw() {
       <button class="bt2" onclick="act('lobby')">Voltar ao lobby</button>` : '<p class="mu">O host controla o tutorial.</p>');
     return;
   }
+  if (ph == 'challenge' && S.ch) {
+    const c = S.ch, A = S.ps[c.by], B = S.ps[c.tg], me_ = me.id, N = Array.from({ length: c.pool }, (_, i) => i + 1);
+    let m = `<p class="hi">⚔️ <b>${A.n}</b> desafiou <b>${B.n}</b></p>`;
+    if (c.step == 'pick' && me_ == c.tg) {
+      m += `<p class="mu">Escolha ${c.size} cartas para o seu deck secreto (${dsel.length}/${c.size}). ${A.n} vai tentar acertar ${c.need} delas.</p>
+      <div class="tm"><i id="bar"></i></div>
+      <div class="dg">${N.map(n => `<button class="${dsel.includes(n) ? 'sel' : ''}" onclick="dtoggle(${n})">${n}</button>`).join('')}</div>
+      <button class="bt" ${dsel.length == c.size ? '' : 'disabled'} onclick="act('chdeck',{d:dsel})">Confirmar deck</button>`;
+    } else if (c.step == 'guess' && me_ == c.by) {
+      m += `<p class="mu">Acerte ${c.need} das ${c.size} cartas de ${B.n}. Acertos: <b>${c.hits}/${c.need}</b> · Palpites: <b>${c.guesses.length}/${c.tries}</b></p>
+      <div class="tm"><i id="bar"></i></div>
+      <div class="dg">${N.map(n => { const g = c.guesses.find(x => x.n == n); return `<button class="${g ? (g.hit ? 'hit' : 'miss') : ''}" ${g ? 'disabled' : `onclick="act('chguess',{n:${n}})"`}>${n}</button>`; }).join('')}</div>`;
+    } else if (c.step == 'done') {
+      const won = me_ == (c.ok ? c.by : c.tg), lost = me_ == (c.ok ? c.tg : c.by);
+      m += `<p class="hi">${c.ok ? A.n + ' acertou!' : A.n + ' errou!'}</p><p class="mu">${won ? 'Boa! Você ganhou 3 pontos.' : lost ? 'Você perdeu 3 pontos.' : 'Olhe para a TV…'}</p>`;
+    } else {
+      const mineDeck = me.chDeck && me.chDeck.length ? `<p class="mu">Seu deck secreto:</p><div class="dg">${N.map(n => { const g = c.guesses.find(x => x.n == n); return `<button class="${me.chDeck.includes(n) ? 'own' : ''} ${g ? (g.hit ? 'hit' : 'miss') : ''}" disabled>${n}</button>`; }).join('')}</div>` : '';
+      m += `<p class="mu">${c.step == 'pick' ? B.n + ' está escolhendo o deck…' : A.n + ' está dando palpites…'} Olhe para a TV!</p>${mineDeck}`;
+    }
+    E.innerHTML = head + m;
+    return;
+  }
   const mine = S.actor == me.id && ['window', 'turn', 'play'].includes(ph), can = mine && ph == 'play';
   let m = '';
   if (ph == 'over') m = `<p class="hi">${S.win == me.id ? '🏆 Você venceu!' : 'Fim de jogo: venceu ' + (S.ps[S.win] ? S.ps[S.win].n : '—')}</p>` + (me.id == 0 ? `<button class="bt" onclick="act('again')">Jogar de novo</button>` : '');
@@ -92,7 +117,9 @@ function draw() {
   else m = `<p class="mu">Aguarde: ${S.ps[S.actor].n} ${ph == 'play' ? 'está jogando' : 'decide se acusa'}.</p>`;
   const hand = me.hand.map((c, i) => face(c).replace('class="c ', `class="c ${i == sel && can ? 'sel' : ''} `).replace('<div', `<div onclick="pick(${i})"`)).join('');
   const others = S.ps.map((p, i) => ({ p, i })).filter(x => x.i != me.id && x.p.alive);
+  const dares = ['play', 'window', 'turn'].includes(ph) && P.alive ? S.ps.map((p, i) => ({ p, i })).filter(x => x.i != me.id && x.p.alive && x.p.pts >= 8 && x.p.pts <= 9 && P.pts < x.p.pts) : [];
   E.innerHTML = head + (mine ? '<div class="tm"><i id="bar"></i></div>' : '') + m + `<div class="hand">${hand}</div>` +
+    (dares.length ? `<div class="dsh"><small class="mu">Quase ganhando! Desafiar:</small>${dares.map(x => `<button class="ch" onclick="chal(${x.i})">⚔️ ${x.p.n} (${x.p.pts})</button>`).join('')}</div>` : '') +
     (P.alive && ph != 'over' ? `<div class="av"><small class="mu">Avisar:</small>${others.map(x => `<button class="ch" onclick="act('nudge',{to:${x.i}})">${x.p.n}</button>`).join('')}</div>` : '');
   if (me.id == 0 && ph != 'over') E.innerHTML += `<button class="bt2" onclick="if(confirm('Voltar ao lobby? A partida atual será encerrada.'))act('lobby')">Voltar ao lobby</button>`;
 }

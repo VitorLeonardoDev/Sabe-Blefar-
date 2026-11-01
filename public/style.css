@@ -77,3 +77,28 @@ select{background:var(--pn);color:var(--tx);border:1px solid var(--bd);border-ra
 .tv.tu{padding-bottom:150px}
 .cap{position:absolute;left:12px;right:12px;bottom:12px;z-index:5;background:#fbbf24;color:#111;padding:10px 14px;border-radius:12px;font-size:17px}
 .cap button{font-weight:700;border:0;border-radius:8px;padding:6px 12px;margin:6px 6px 0 0;cursor:pointer;background:#111;color:#fff}
+
+/* ---- Desafio ---- */
+.chal{text-align:center;margin-top:3vh}
+.chal h2{margin:0;font-size:3.2vw;color:var(--bad)}
+.chal .sub{font-size:1.8vw;margin:.6vw 0 1.6vw}
+.dk{display:grid;grid-template-columns:repeat(5,1fr);gap:1.2vw;max-width:56vw;margin:0 auto}
+.dk .n{aspect-ratio:5/3;border-radius:14px;border:3px solid #fff;display:flex;align-items:center;justify-content:center;font-size:3.6vw;font-weight:900;background:repeating-linear-gradient(45deg,#1d4ed8,#1d4ed8 8px,#1e40af 8px,#1e40af 16px);color:#ffffffcc;transition:transform .35s}
+.dk .n.hit{background:var(--ok);color:#052e16;transform:scale(1.07)}
+.dk .n.miss{background:#3b0d0d;color:var(--bad);border-color:var(--bad)}
+.dk .n.rev{background:#facc15;color:#422006;border-color:#fff}
+.dk .n.rev.miss{background:#facc15}
+.chal .tally{font-size:2vw;margin-top:1.6vw;color:var(--ac)}
+.chal .res{font-size:2.6vw;font-weight:900;margin-top:1vw}
+.chal .res.ok{color:var(--ok)}.chal .res.bad{color:var(--bad)}
+.dg{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:10px}
+.dg button{padding:14px 0;font-size:20px;font-weight:800;border:1px solid var(--bd);border-radius:10px;background:transparent;color:var(--tx);cursor:pointer}
+.dg .sel{background:var(--ac);color:#111;border-color:var(--ac)}
+.dg .hit{background:var(--ok);color:#052e16;border-color:var(--ok)}
+.dg .miss{background:transparent;color:var(--bad);border-color:var(--bad);text-decoration:line-through}
+.dg .own{outline:3px solid var(--ac)}
+.dg button:disabled{cursor:default;opacity:.85}
+.dsh{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-top:12px}
+.dsh .ch{flex:none;padding:6px 12px;font-size:14px;border-color:var(--bad);color:var(--bad);font-weight:700}
+#snd{position:fixed;right:12px;bottom:12px;z-index:50;background:#1e293b;color:#f1f5f9;border:1px solid #334155;border-radius:999px;padding:8px 16px;font:inherit;font-size:14px;cursor:pointer;opacity:.9}
+@media(prefers-reduced-motion:reduce){.dk .n{transition:none}}

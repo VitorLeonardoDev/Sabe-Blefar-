@@ -1,0 +1,15 @@
+Coloque aqui os arquivos de áudio (mp3, ogg, m4a ou wav). Se um não existir, o jogo toca um som sintetizado.
+
+MÚSICAS (tocam em loop até a situação acabar)
+  lobby      -> tela inicial / tutorial
+  game       -> partida rolando
+  challenge  -> modo Desafio
+
+EFEITOS
+  tick       -> relógio nos últimos 5s da vez (volume ambiente)
+  whoosh     -> troca de jogador ("digital whoosh")
+  flash      -> alguém errou o ACUSAR (flash de câmera)
+  boom       -> alguém acertou o ACUSAR ("skibidi boom")
+  win        -> fim da partida (opcional)
+
+Exemplo: lobby.mp3, game.mp3, challenge.mp3, tick.mp3, whoosh.mp3, flash.mp3, boom.mp3
