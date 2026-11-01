@@ -38,6 +38,7 @@ const SB = (() => {
     whoosh: () => { const t = ctx.currentTime; noise(t, .5, .7, 'bandpass', 300, 4000); tone(180, t, .45, 'sawtooth', .12, null, 1600); tone(800, t, .2, 'square', .05, null, 2400); },
     flash: () => { const t = ctx.currentTime; noise(t, .03, .9, 'highpass', 2000); noise(t + .08, .04, .7, 'highpass', 1500); tone(2000, t + .12, .4, 'sine', .12, null, 7000); },
     boom: () => { const t = ctx.currentTime; [650, 520, 780].forEach((f, i) => tone(f, t + i * .09, .08, 'square', .12)); const b = t + .3; tone(140, b, .9, 'sine', .9, null, 30); noise(b, .5, .8, 'lowpass', 900, 80); },
+    power: () => { const t = ctx.currentTime; tone(220, t, .6, 'sawtooth', .2, null, 1760); [72, 76, 79, 84].forEach((n, i) => tone(midi(n), t + .25 + i * .06, .7, 'triangle', .18)); noise(t, .4, .4, 'bandpass', 500, 6000); },
     win: () => { const t = ctx.currentTime; [60, 64, 67, 72, 76].forEach((n, i) => tone(midi(n), t + i * .14, .5, 'triangle', .3)); },
   };
 
@@ -83,7 +84,7 @@ const SB = (() => {
         mg = ctx.createGain(); mg.gain.value = muted ? 0 : 1; mg.connect(ctx.destination);
         msc = ctx.createGain(); msc.gain.value = .22; msc.connect(mg);   // música em volume ambiente
         sfxg = ctx.createGain(); sfxg.gain.value = .5; sfxg.connect(mg); // efeitos
-        ['lobby', 'game', 'challenge', 'tick', 'whoosh', 'flash', 'boom', 'win'].forEach(load);
+        ['lobby', 'game', 'challenge', 'tick', 'whoosh', 'flash', 'boom', 'win', 'power'].forEach(load);
       }
       ctx.resume(); music(want);
     },

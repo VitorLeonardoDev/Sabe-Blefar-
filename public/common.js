@@ -31,3 +31,17 @@ function fakeState(s) {
   return Object.assign({ fake: 1, code: '', phase: '', ref: 7, actor: -1, log: [], win: null, forced: !!s.forced, nud: s.nud ? { n: -1, f: 1, t: 3 } : null,
     ps: PN.map((n, i) => ({ n, pts: (s.p || [5, 5, 5, 5])[i], cards: 12, alive: 1, conn: 1, bot: 0 })), pend: null, rev: null }, s.g);
 }
+
+// ---- Poderes ----
+const PW = {
+  spy: { i: '👁️', n: 'Espiar', d: 'Veja a carta virada da última jogada' },
+  gag: { i: '🔒', n: 'Mordaça', d: 'Alguém não poderá acusar a sua próxima jogada' },
+  radar: { i: '🎯', n: 'Radar', d: 'Revela se a última jogada foi blefe (custa 1 ponto)' },
+  shield: { i: '🛡️', n: 'Escudo', d: 'Anula a sua próxima perda de pontos' },
+  gold: { i: '🃏', n: 'Carta dourada', d: 'Sua próxima carta conta como verdade' },
+  free: { i: '🔕', n: 'Passe livre', d: 'Dispensa uma acusação obrigatória' },
+  dbl: { i: '🎲', n: 'Aposta dobrada', d: 'Seu próximo blefe vale +4 (ou −4 se for pego)' },
+  swap: { i: '🔄', n: 'Troca', d: 'Troque uma carta da mão por outra do baralho' },
+  shuf: { i: '🎡', n: 'Nova referência', d: 'Sorteia outra carta de referência' },
+};
+const ATKS = ['spy', 'gag', 'radar']; // bloqueados para quem tem 8 ou 9 pontos
