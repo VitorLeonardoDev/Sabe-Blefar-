@@ -3,6 +3,6 @@
   "version": "1.0.0",
   "description": "Sabe Blefar? - jogo de blefe com TV + celulares",
   "main": "server.js",
-  "scripts": { "start": "node server.js", "test": "node test.js" },
+  "scripts": { "start": "node server.js", "test": "node test.js && node test-challenge.js" },
   "engines": { "node": ">=18" }
 }

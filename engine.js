@@ -7,11 +7,14 @@ const rnd = n => Math.floor(Math.random() * n);
 const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = rnd(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 const truth = q => q.t == 'e' ? q.card.v == q.n : q.t == 's' ? q.card.v > q.rb : q.card.v < q.rb;
 const HUMAN_MS = 30000, REVEAL_MS = 6000, TUT_LEN = 10;
+// Modo Desafio: o desafiado esconde CH_DECK cartas (de 1 a CH_POOL); o desafiante tenta acertar CH_NEED delas em até CH_TRIES palpites.
+// (CH_TRIES = 3 vira "os 3 palpites precisam estar certos"; 5 deixa a disputa mais equilibrada: ~50% de chance.)
+const CH_POOL = 10, CH_DECK = 5, CH_NEED = 3, CH_TRIES = 5, CH_PTS = 3, CH_PICK_MS = 30000, CH_GUESS_MS = 20000, CH_DONE_MS = 7000;
 
 class Room {
   constructor(code, onChange) {
     Object.assign(this, { code, onChange, clients: new Set(), ps: [], phase: 'lobby', ref: 0, pend: null, rev: null,
-      win: null, actor: -1, cur: 0, log: [], nud: null, nn: 0, dl: 0, tut: -1, n: 6, T: null, seen: Date.now() });
+      win: null, actor: -1, cur: 0, log: [], nud: null, nn: 0, dl: 0, tut: -1, n: 6, T: null, seen: Date.now(), ch: null, resume: null });
   }
   emit() { this.seen = Date.now(); this.onChange(this); }
   say(m) { this.log.unshift(m); this.log.length = Math.min(4, this.log.length); }
@@ -46,7 +49,7 @@ class Room {
   again() {
     clearTimeout(this.T); this.ps = this.ps.filter(p => !p.bot);
     this.ps.forEach(p => Object.assign(p, { pts: 5, hand: [], alive: 1, miss: 0 }));
-    Object.assign(this, { phase: 'lobby', pend: null, rev: null, win: null, actor: -1, log: [], dl: 0, tut: -1, nud: null }); this.emit();
+    Object.assign(this, { phase: 'lobby', pend: null, rev: null, win: null, actor: -1, log: [], dl: 0, tut: -1, nud: null, ch: null, resume: null }); this.emit();
   }
   deal() {
     const d = []; for (let s = 0; s < 4; s++) for (let v = 1; v <= 13; v++) d.push({ v, s });
@@ -138,6 +141,59 @@ class Room {
     }
     return false;
   }
+  // ---- Modo Desafio ----
+  // Quem tem MENOS pontos pode desafiar um jogador com 8 ou 9 pontos. O jogo pausa e depois continua de onde parou.
+  canChallenge(by, to) {
+    const A = this.ps[by], B = this.ps[to];
+    return !!(A && B && by != to && A.alive && B.alive && !A.bot && B.pts >= 8 && B.pts <= 9 && A.pts < B.pts && ['play', 'window', 'turn'].includes(this.phase));
+  }
+  startChallenge(by, tg) {
+    clearTimeout(this.T);
+    this.resume = { phase: this.phase, actor: this.actor };
+    this.phase = 'challenge';
+    this.ch = { by, tg, step: 'pick', deck: [], guesses: [], hits: 0, ok: null };
+    this.say(`${this.ps[by].n} desafiou ${this.ps[tg].n}!`);
+    this.chGo();
+  }
+  chWho() { return this.ch.step == 'pick' ? this.ch.tg : this.ch.by; }
+  chGo() {
+    clearTimeout(this.T); const c = this.ch;
+    if (c.step == 'done') { this.dl = 0; this.T = setTimeout(() => this.chEnd(), CH_DONE_MS * F); return this.emit(); }
+    const P = this.ps[this.chWho()], d = (P.bot ? 1800 + rnd(1400) : c.step == 'pick' ? CH_PICK_MS : CH_GUESS_MS) * F;
+    this.dl = Date.now() + d; this.T = setTimeout(() => this.chTimeout(), d); this.emit();
+  }
+  chTimeout() { // tempo esgotado (ou bot): joga aleatório
+    const c = this.ch; if (!c) return;
+    if (c.step == 'pick') this.chDeck(shuffle(Array.from({ length: CH_POOL }, (_, i) => i + 1)).slice(0, CH_DECK));
+    else { const left = []; for (let n = 1; n <= CH_POOL; n++) if (!c.guesses.some(g => g.n == n)) left.push(n); this.chGuess(left[rnd(left.length)]); }
+  }
+  chDeck(d) {
+    const c = this.ch; if (!c || c.step != 'pick' || !Array.isArray(d)) return;
+    d = [...new Set(d.map(x => x | 0))].filter(n => n >= 1 && n <= CH_POOL);
+    if (d.length != CH_DECK) return;
+    c.deck = d.sort((a, b) => a - b); c.step = 'guess'; this.chGo();
+  }
+  chGuess(n) {
+    const c = this.ch; if (!c || c.step != 'guess') return;
+    n |= 0; if (n < 1 || n > CH_POOL || c.guesses.some(g => g.n == n)) return;
+    const hit = c.deck.includes(n); c.guesses.push({ n, hit }); if (hit) c.hits++;
+    const win = c.hits >= CH_NEED, lose = !win && CH_TRIES - c.guesses.length < CH_NEED - c.hits;
+    if (!win && !lose) return this.chGo();
+    clearTimeout(this.T);
+    const A = this.ps[c.by], B = this.ps[c.tg]; c.ok = win; c.step = 'done';
+    if (win) { A.pts += CH_PTS; B.pts -= CH_PTS; this.say(`${A.n} venceu o desafio! ${A.n} +${CH_PTS} · ${B.n} −${CH_PTS}`); }
+    else { A.pts -= CH_PTS; B.pts += CH_PTS; this.say(`${A.n} falhou no desafio! ${A.n} −${CH_PTS} · ${B.n} +${CH_PTS}`); }
+    this.chGo();
+  }
+  chEnd() {
+    const r = this.resume; this.ch = null; this.resume = null;
+    if (this.chk()) return; // alguém chegou a 10 (ou sobrou um só)
+    this.phase = r.phase; this.actor = r.actor;
+    if (!this.ps[r.actor].alive) { // o jogador da vez foi eliminado no desafio
+      this.cur = this.nextA(this.pend ? this.pend.p : r.actor); return this.startTurn();
+    }
+    this.go();
+  }
   nudge(f, t) { this.nn++; this.nud = { n: this.nn, f, t }; this.say(`${this.ps[f].n} avisou ${this.ps[t].n}!`); this.emit(); }
 
   // Ação vinda de um celular. Tudo é validado aqui: o celular só "pede".
@@ -150,6 +206,12 @@ class Room {
     if (m.a == 'nudge') {
       const t = this.ps[m.to];
       if (t && t.alive && P.alive && m.to != id && !['lobby', 'tutorial', 'over'].includes(this.phase)) this.nudge(id, m.to);
+      return;
+    }
+    if (m.a == 'challenge') { const to = m.to | 0; if (this.canChallenge(id, to)) this.startChallenge(id, to); return; }
+    if (this.phase == 'challenge' && this.ch) {
+      if (m.a == 'chdeck' && this.ch.tg == id) this.chDeck(m.d);
+      else if (m.a == 'chguess' && this.ch.by == id) this.chGuess(m.n);
       return;
     }
     if (this.actor != id || !P.alive) return;
@@ -170,9 +232,10 @@ class Room {
       forced: this.phase == 'turn' && this.ps[this.actor] && this.ps[this.actor].miss >= 2,
       ps: this.ps.map(p => ({ n: p.n, pts: p.pts, cards: p.hand.length, alive: p.alive, conn: p.conn, bot: p.bot })),
       pend: this.pend && { p: this.pend.p, t: this.pend.t, n: this.pend.n },
+      ch: this.ch && { by: this.ch.by, tg: this.ch.tg, step: this.ch.step, hits: this.ch.hits, guesses: this.ch.guesses, ok: this.ch.ok, deck: this.ch.step == 'done' ? this.ch.deck : null, pool: CH_POOL, need: CH_NEED, tries: CH_TRIES, size: CH_DECK, pts: CH_PTS },
       rev: this.rev && { card: this.rev.q.card, t: this.rev.q.t, n: this.rev.q.n, p: this.rev.q.p, ok: this.rev.ok, by: this.rev.by },
     };
-    if (id != null && this.ps[id]) v.me = { id, hand: this.ps[id].hand, miss: this.ps[id].miss };
+    if (id != null && this.ps[id]) v.me = { id, hand: this.ps[id].hand, miss: this.ps[id].miss, chDeck: this.ch && this.ch.tg == id ? this.ch.deck : null };
     return v;
   }
 }

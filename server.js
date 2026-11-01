@@ -5,7 +5,8 @@ const http = require('http'), fs = require('fs'), path = require('path'), crypto
 const { Room } = require('./engine');
 const PORT = process.env.PORT || 3000, PUB = path.join(__dirname, 'public');
 const rooms = new Map();
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8' };
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
+  '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.m4a': 'audio/mp4', '.wav': 'audio/wav' };
 
 const newCode = () => { let c; do { c = Array.from({ length: 4 }, () => 'BCDFGHJKLMNPQRSTVWXZ'[crypto.randomInt(20)]).join(''); } while (rooms.has(c)); return c; };
 const send = (cl, r) => cl.res.write('data: ' + JSON.stringify(r.view(cl.id)) + '\n\n');
@@ -55,7 +56,9 @@ http.createServer(async (req, res) => {
     let f = p == '/tv' ? 'tv.html' : (p == '/' || /^\/[A-Za-z]{4}$/.test(p)) ? 'play.html' : p;
     f = path.join(PUB, path.normalize(f));
     if (!f.startsWith(PUB) || !fs.existsSync(f) || !fs.statSync(f).isFile()) { res.writeHead(404); return res.end('Não encontrado'); }
-    res.writeHead(200, { 'Content-Type': MIME[path.extname(f)] || 'application/octet-stream' }); fs.createReadStream(f).pipe(res);
+    const ext = path.extname(f), h = { 'Content-Type': MIME[ext] || 'application/octet-stream' };
+    if (/^\.(mp3|ogg|m4a|wav)$/.test(ext)) h['Cache-Control'] = 'public, max-age=86400'; // áudio é pesado: o navegador guarda
+    res.writeHead(200, h); fs.createReadStream(f).pipe(res);
   } catch (e) { console.error(e); try { res.writeHead(500); res.end(); } catch (_) {} }
 }).listen(PORT, () => console.log(`Sabe Blefar? rodando em http://localhost:${PORT}  (TV: /tv)`));
 

@@ -16,8 +16,15 @@ Hospede em Render, Railway ou Fly.io como "Web Service" Node:
 - TV: `https://seu-app.onrender.com/tv` · Celulares: `https://seu-app.onrender.com`
 Importante: rode uma única instância (as salas ficam na memória do servidor).
 
+## Som
+A TV toca músicas e efeitos (`public/audio.js`). Navegadores só liberam áudio depois de um toque/tecla: **toque uma vez na tela da TV** (ou aperte qualquer tecla) para ativar. O botão no canto alterna mudo.
+Coloque os arquivos em `public/audio/` (nomes e detalhes em `public/audio/LEIA-ME.txt`): `lobby`, `game`, `challenge`, `tick`, `whoosh`, `flash`, `boom`, `win` (mp3/ogg/m4a/wav). O que faltar toca um som sintetizado.
+
+## Modo Desafio
+Quem tem **menos pontos** que um jogador com **8 ou 9 pontos** pode desafiá-lo (botão no celular). O jogo pausa: o desafiado esconde 5 números de 1 a 10 e o desafiante tem 5 palpites para acertar 3. Acertou: desafiante +3 e desafiado −3. Errou: desafiante −3 e desafiado +3 (chega a 10 e vence). Ajuste as regras nas constantes `CH_*` no topo de `engine.js` (com `CH_TRIES = 3` os 3 palpites precisam todos estar certos).
+
 ## Teste automático
-`node test.js` joga uma partida inteira em modo acelerado e confere as regras de conexão.
+`npm test` joga uma partida inteira em modo acelerado, confere as regras de conexão e testa o modo Desafio (`test-challenge.js`).
 
 ## Arquivos
 - `engine.js`: regras, bots, timers (o servidor decide tudo)
