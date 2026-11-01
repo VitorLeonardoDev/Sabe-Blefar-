@@ -5,8 +5,21 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Sabe Blefar? – TV</title>
 <link rel="stylesheet" href="/style.css">
-<style>body{background:#0f172a;margin:0}.tv{min-height:100vh;border:0;border-radius:0;padding:4vh 4vw;font-size:1.3vw}
-.tv .pl{min-width:9vw}.tv .pl b{font-size:2.4vw}.tv .ref strong{font-size:9vw}.tv .st{font-size:1.8vw}.tv .cl{font-size:1.8vw}.tv .log{font-size:1.3vw}.code{font-size:7vw}.lob h1{font-size:4vw}</style>
+<style>
+body{background:#0f172a;margin:0}
+.tv{min-height:100vh;border:0;border-radius:0;padding:4vh 4vw;font-size:1.3vw}
+.tv.tu{padding-bottom:20vh}
+.tv .pl{min-width:9vw}.tv .pl b{font-size:2.4vw}.tv .ref strong{font-size:9vw}.tv .st{font-size:1.8vw}.tv .cl{font-size:1.8vw}.tv .log{font-size:1.3vw}
+.tv .cap{font-size:1.6vw;padding:1.2vw 1.6vw}
+.lob h1{font-size:4vw;margin:0}
+.lg{display:grid;grid-template-columns:1fr 1fr;gap:3vw;margin-top:4vh;text-align:center}
+.card{background:var(--pn);border:2px solid var(--bd);border-radius:18px;padding:2.2vw;min-height:55vh}
+.card h3{margin:0 0 1.4vw;font-size:2vw}
+.card .code{font-size:5.5vw;line-height:1.1}
+#qr{display:inline-block;background:#fff;padding:1vw;border-radius:12px;margin:1.2vw 0}
+.pr{display:flex;justify-content:space-between;align-items:center;background:#0f172a66;border:1px solid var(--bd);border-radius:10px;padding:.7vw 1.2vw;margin-bottom:.7vw;font-size:1.8vw}
+.pr small{color:var(--ac)}
+</style>
 </head>
 <body>
 <section class="tv" id="tv"></section>
@@ -22,26 +35,46 @@ async function init() {
 }
 function draw() {
   const T = $('tv');
-  if (!S) { T.innerHTML = '<div class="lob"><h1>Conectando…</h1></div>'; return; }
+  if (!S) { T.className = 'tv'; T.dataset.m = ''; T.innerHTML = '<div class="lob"><h1>Conectando…</h1></div>'; return; }
   if (S.phase == 'lobby') {
-    T.innerHTML = `<div class="lob"><h1>Sabe Blefar?</h1><div class="mu">No celular, acesse <b>${location.host}</b> e digite o código, ou escaneie:</div>
-    <div class="code">${S.code}</div><div id="qr" style="display:inline-block;background:#fff;padding:8px;border-radius:8px"></div>
-    <div class="pls" style="justify-content:center;margin-top:16px">${S.ps.map((p, i) => `<div class="pl"><span>${p.n}</span><small>${i ? 'conectado' : 'host'}</small></div>`).join('') || '<span class="mu">Aguardando celulares…</span>'}</div>
-    <p class="mu">${S.ps.length ? 'O host inicia a partida pelo celular.' : ''}</p></div>`;
-    if (window.QRCode) new QRCode($('qr'), { text: location.origin + '/' + S.code, width: 160, height: 160 });
+    if (T.dataset.m != 'lobby') { // monta o lobby uma única vez: o QR code não é refeito quando alguém entra
+      T.dataset.m = 'lobby'; T.className = 'tv';
+      T.innerHTML = `<div class="lob" style="text-align:center"><h1>🃏 Sabe Blefar?</h1>
+      <div class="lg">
+        <div class="card"><h3>Entre pelo celular</h3><div class="mu">Escaneie com a câmera</div><div id="qr"></div>
+        <div class="mu">ou acesse <b>${location.host}</b> e digite o código</div><div class="code">${S.code}</div></div>
+        <div class="card"><h3>Na sala</h3><div id="plist"></div><p id="hint" class="mu"></p></div>
+      </div></div>`;
+      if (window.QRCode) new QRCode($('qr'), { text: location.origin + '/' + S.code, width: Math.round(innerWidth * .14), height: Math.round(innerWidth * .14) });
+    }
+    $('plist').innerHTML = S.ps.map((p, i) => `<div class="pr"><span>${p.n}</span><small>${i ? (p.conn ? 'conectado' : 'desconectado') : 'host'}</small></div>`).join('');
+    $('hint').textContent = S.ps.length ? 'O host inicia a partida pelo celular.' : 'Aguardando jogadores…';
     return;
   }
+  T.dataset.m = 'g';
+  if (S.phase == 'tutorial') {
+    const s = TS[Math.max(0, S.tut)]; T.className = 'tv tu';
+    T.innerHTML = gameHTML(fakeState(s)) + `<div class="cap"><b>Tutorial ${S.tut + 1}/${TS.length} · ${s.t}</b><div>${s.c}</div></div>`;
+    return;
+  }
+  T.className = 'tv'; T.innerHTML = gameHTML(S);
+}
+function gameHTML(S) {
   const ph = S.phase, q = S.pend, A = S.ps[S.actor], busy = ph != 'over' && ph != 'reveal';
-  const tag = i => i != S.actor || !busy ? '' : ph == 'window' ? '<em>pode acusar</em>' : ph == 'turn' ? '<em>vez · acusar?</em>' : '<em>jogando</em>';
+  const tag = i => i != S.actor || !busy ? '' : ph == 'window' ? '<em>pode acusar</em>' : ph == 'turn' ? '<em>vez · acusar?</em>' : ph == 'play' ? '<em>jogando</em>' : '';
   const pls = S.ps.map((p, i) => `<div class="pl ${p.alive ? '' : 'dead'} ${i == S.actor && busy ? 'on' : ''}"><span>${p.n}</span><b>${p.pts}</b><small>${!p.alive ? 'fora' : !p.conn ? 'desconectado' : p.cards + ' cartas'}</small>${tag(i)}</div>`).join('');
   const st = ph == 'window' ? `${A.n} pode acusar agora` : ph == 'turn' ? `Vez de ${A.n}: ${S.forced ? 'acusação obrigatória!' : 'acusar ou jogar'}` : ph == 'play' ? `${A.n} está escolhendo a carta` : '';
   let ov = '';
   if (S.rev) { const r = S.rev, a = S.ps[r.by], b = S.ps[r.p];
     ov = `<div class="ov">${face(r.card).replace('class="c ', 'class="c big ')}<h2 class="${r.ok ? 'bad' : 'ok'}">${r.ok ? 'MENTIRA!' : 'VERDADE!'}</h2><div>${a.n} acusou ${b.n} · ${ctext(r)}</div><div class="mu">${r.ok ? `${a.n} +2 · ${b.n} −2` : `${a.n} −1`}</div></div>`; }
   if (ph == 'over') { const w = S.ps[S.win]; ov = `<div class="ov"><h2 class="ok">🏆 ${w ? w.n : 'Sem vencedor'}</h2><div>venceu a partida!</div><div class="mu">O host pode jogar de novo pelo celular.</div></div>`; }
-  if (S.nud && S.nud.n != toastN) { toastN = S.nud.n; toastUntil = Date.now() + 5000; setTimeout(draw, 5100); }
-  const toast = S.nud && Date.now() < toastUntil ? `<div class="toast">👋 ${S.ps[S.nud.f].n} avisou ${S.ps[S.nud.t].n}!</div>` : '';
-  T.innerHTML = `<div class="pls">${pls}</div>
+  let toast = '';
+  if (S.fake) { if (S.nud) toast = `<div class="toast">👋 ${S.ps[S.nud.f].n} avisou ${S.ps[S.nud.t].n}!</div>`; }
+  else {
+    if (S.nud && S.nud.n != toastN) { toastN = S.nud.n; toastUntil = Date.now() + 5000; setTimeout(draw, 5100); }
+    if (S.nud && Date.now() < toastUntil) toast = `<div class="toast">👋 ${S.ps[S.nud.f].n} avisou ${S.ps[S.nud.t].n}!</div>`;
+  }
+  return `<div class="pls">${pls}</div>
   <div class="mid"><div class="ref"><small>REFERÊNCIA</small><strong>${S.ref}</strong><em>${RK[S.ref]}</em></div>
   <div class="pile"><div class="c back"></div><div>${q ? `<b>${S.ps[q.p].n}</b> jogou e disse<div class="cl">${ctext(q)}</div>` : '<span class="mu">Mesa vazia</span>'}</div></div></div>
   <div class="st">${st}</div><div class="tm"><i id="bar"></i></div>

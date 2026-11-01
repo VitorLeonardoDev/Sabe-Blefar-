@@ -12,7 +12,7 @@
 <script src="/common.js"></script>
 <script>
 let C = (location.pathname.slice(1).match(/^[A-Za-z]{4}$/) || [''])[0].toUpperCase();
-let ME = null, S = null, es = null, sel = -1, cl = '', cn = 0, TN = 6, down = false, wasMine = false, lastNud = 0;
+let ME = null, S = null, es = null, sel = -1, cl = '', cn = 0, TN = 6, TUTON = true, down = false, wasMine = false, lastNud = 0;
 let JE = '', JN = localStorage.sbname || '', JC = C;
 
 try { const sv = C && JSON.parse(localStorage['sb_' + C] || 'null'); if (sv) { ME = sv; connect(); } } catch (e) {}
@@ -62,7 +62,16 @@ function draw() {
     E.innerHTML = head + `<p class="hi">✅ Você está na sala!</p><p class="mu">${S.ps.length} na sala: ${S.ps.map(p => p.n).join(', ')}</p>` +
       (host ? `<p class="mu">Você é o host. Total de jogadores (bots completam):</p>
       <select style="width:100%;padding:10px" onchange="TN=+this.value">${[4, 5, 6, 7, 8, 9, 10].map(k => `<option ${k == TN ? 'selected' : ''}>${k}</option>`).join('')}</select>
-      <button class="bt" onclick="act('start',{n:TN})">Começar partida</button>` : '<p class="mu">Aguarde: o host vai iniciar a partida.</p>');
+      <label class="mu" style="display:block;margin-top:12px"><input type="checkbox" ${TUTON ? 'checked' : ''} onchange="TUTON=this.checked"> Ver tutorial na TV antes de começar</label>
+      <button class="bt" onclick="act('start',{n:TN,tut:TUTON})">Começar partida</button>` : '<p class="mu">Aguarde: o host vai iniciar a partida.</p>');
+    return;
+  }
+  if (ph == 'tutorial') {
+    const s = TS[Math.max(0, S.tut)];
+    E.innerHTML = head + `<p class="hi">📺 Tutorial ${S.tut + 1}/${TS.length}: ${s.t}</p><p class="mu">${s.n || 'Olhe para a TV!'}</p>` +
+      (me.id == 0 ? `<div class="seg"><button onclick="act('tut',{d:-1})">‹ Voltar</button><button onclick="act('tut',{d:1})">Próximo ›</button></div>
+      <button class="bt2" onclick="act('tut',{d:99})">Pular tutorial</button>
+      <button class="bt2" onclick="act('lobby')">Voltar ao lobby</button>` : '<p class="mu">O host controla o tutorial.</p>');
     return;
   }
   const mine = S.actor == me.id && ['window', 'turn', 'play'].includes(ph), can = mine && ph == 'play';
@@ -85,6 +94,7 @@ function draw() {
   const others = S.ps.map((p, i) => ({ p, i })).filter(x => x.i != me.id && x.p.alive);
   E.innerHTML = head + (mine ? '<div class="tm"><i id="bar"></i></div>' : '') + m + `<div class="hand">${hand}</div>` +
     (P.alive && ph != 'over' ? `<div class="av"><small class="mu">Avisar:</small>${others.map(x => `<button class="ch" onclick="act('nudge',{to:${x.i}})">${x.p.n}</button>`).join('')}</div>` : '');
+  if (me.id == 0 && ph != 'over') E.innerHTML += `<button class="bt2" onclick="if(confirm('Voltar ao lobby? A partida atual será encerrada.'))act('lobby')">Voltar ao lobby</button>`;
 }
 setInterval(() => { const b = $('bar'); if (b && S) b.style.width = S.left ? Math.max(0, (S.end - Date.now()) / 300) + '%' : '0'; }, 200);
 draw();
