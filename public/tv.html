@@ -16,7 +16,9 @@ body{background:#0f172a;margin:0}
 .card{background:var(--pn);border:2px solid var(--bd);border-radius:18px;padding:2.2vw;min-height:55vh}
 .card h3{margin:0 0 1.4vw;font-size:2vw}
 .card .code{font-size:5.5vw;line-height:1.1}
-#qr{display:inline-block;background:#fff;padding:1vw;border-radius:12px;margin:1.2vw 0}
+#qr{display:block;box-sizing:content-box;background:#fff;padding:1vw;border-radius:12px;margin:1.4vw auto}
+#qr canvas{display:none!important}#qr img{display:block;width:100%;height:100%}
+.card .how{margin-top:1.4vw}
 .pr{display:flex;justify-content:space-between;align-items:center;background:#0f172a66;border:1px solid var(--bd);border-radius:10px;padding:.7vw 1.2vw;margin-bottom:.7vw;font-size:1.8vw}
 .pr small{color:var(--ac)}
 </style>
@@ -42,10 +44,10 @@ function draw() {
       T.innerHTML = `<div class="lob" style="text-align:center"><h1>🃏 Sabe Blefar?</h1>
       <div class="lg">
         <div class="card"><h3>Entre pelo celular</h3><div class="mu">Escaneie com a câmera</div><div id="qr"></div>
-        <div class="mu">ou acesse <b>${location.host}</b> e digite o código</div><div class="code">${S.code}</div></div>
+        <div class="mu how">ou acesse <b>${location.host}</b> e digite o código</div><div class="code">${S.code}</div></div>
         <div class="card"><h3>Na sala</h3><div id="plist"></div><p id="hint" class="mu"></p></div>
       </div></div>`;
-      if (window.QRCode) new QRCode($('qr'), { text: location.origin + '/' + S.code, width: Math.round(innerWidth * .14), height: Math.round(innerWidth * .14) });
+      if (window.QRCode) { const Q = Math.round(innerWidth * .14), e = $('qr'); e.style.width = Q + 'px'; e.style.height = Q + 'px'; new QRCode(e, { text: location.origin + '/' + S.code, width: Q, height: Q }); }
     }
     $('plist').innerHTML = S.ps.map((p, i) => `<div class="pr"><span>${p.n}</span><small>${i ? (p.conn ? 'conectado' : 'desconectado') : 'host'}</small></div>`).join('');
     $('hint').textContent = S.ps.length ? 'O host inicia a partida pelo celular.' : 'Aguardando jogadores…';
