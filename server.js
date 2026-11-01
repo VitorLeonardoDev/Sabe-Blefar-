@@ -9,22 +9,26 @@ const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; cha
   '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.m4a': 'audio/mp4', '.wav': 'audio/wav' };
 
 const newCode = () => { let c; do { c = Array.from({ length: 4 }, () => 'BCDFGHJKLMNPQRSTVWXZ'[crypto.randomInt(20)]).join(''); } while (rooms.has(c)); return c; };
-const send = (cl, r) => cl.res.write('data: ' + JSON.stringify(r.view(cl.id)) + '\n\n');
-const broadcast = r => { for (const cl of r.clients) send(cl, r); };
+const send = (cl, r) => { // quem foi removido da sala recebe {kicked:1} e a conexão é encerrada
+  const i = cl.pl ? r.ps.indexOf(cl.pl) : null, kicked = !!cl.pl && (i < 0 || !!cl.pl.gone);
+  cl.res.write('data: ' + JSON.stringify(kicked ? { kicked: 1 } : r.view(i)) + '\n\n');
+  if (kicked) { r.clients.delete(cl); cl.res.end(); }
+};
+const broadcast = r => { for (const cl of [...r.clients]) send(cl, r); };
 const json = (res, o, s = 200) => { res.writeHead(s, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(o)); };
 const body = req => new Promise(ok => {
   let b = ''; req.on('data', d => { b += d; if (b.length > 4096) req.destroy(); });
   req.on('end', () => { try { ok(JSON.parse(b || '{}')); } catch (e) { ok({}); } });
 });
 
-function stream(req, res, r, id) {
+function stream(req, res, r, pl) {
   res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no' });
-  const cl = { res, id }; r.clients.add(cl);
-  if (id != null) { r.ps[id].conn = 1; r.emit(); } else send(cl, r);
+  const cl = { res, pl }; r.clients.add(cl);
+  if (pl) { pl.conn = 1; r.emit(); } else send(cl, r);
   const ka = setInterval(() => res.write(': ka\n\n'), 15000);
   req.on('close', () => {
     clearInterval(ka); r.clients.delete(cl);
-    if (id != null && ![...r.clients].some(c => c.id === id)) { r.ps[id].conn = 0; r.emit(); }
+    if (pl && !pl.gone && r.ps.includes(pl) && ![...r.clients].some(c => c.pl === pl)) { pl.conn = 0; r.emit(); }
   });
 }
 
@@ -36,19 +40,19 @@ http.createServer(async (req, res) => {
     if ((m = p.match(/^\/api\/room\/([A-Z]{4})$/))) return rooms.has(m[1]) ? json(res, { ok: 1 }) : json(res, { err: 1 }, 404);
     if ((m = p.match(/^\/api\/tv\/([A-Z]{4})$/))) { const r = rooms.get(m[1]); return r ? stream(req, res, r, null) : json(res, { err: 1 }, 404); }
     if ((m = p.match(/^\/api\/stream\/([A-Z]{4})$/))) {
-      const r = rooms.get(m[1]), pl = r && r.ps.find(x => x.tk && x.tk == q.get('t'));
-      return pl ? stream(req, res, r, pl.id) : json(res, { err: 1 }, 404);
+      const r = rooms.get(m[1]), pl = r && r.ps.find(x => x.tk && !x.gone && x.tk == q.get('t'));
+      return pl ? stream(req, res, r, pl) : json(res, { err: 1 }, 404);
     }
     if (post && p == '/api/join') {
       const b = await body(req), r = rooms.get(String(b.code || '').toUpperCase());
       if (!r) return json(res, { err: 'Código não encontrado. Confira na TV.' }, 404);
-      const old = b.token && r.ps.find(x => x.tk && x.tk == b.token); // reconexão: volta para a mesma cadeira
+      const old = b.token && r.ps.find(x => x.tk && !x.gone && x.tk == b.token); // reconexão: volta para a mesma cadeira
       if (old) return json(res, { token: old.tk, name: old.n });
       const x = r.join(b.name); return x.err ? json(res, x, 400) : json(res, { token: x.tk, name: x.n });
     }
     if (post && p == '/api/act') {
       const b = await body(req), r = rooms.get(String(b.code || '').toUpperCase());
-      const pl = r && r.ps.find(x => x.tk && x.tk == b.token);
+      const pl = r && r.ps.find(x => x.tk && !x.gone && x.tk == b.token);
       if (pl) r.act(pl.id, b);
       return json(res, { ok: !!pl });
     }
