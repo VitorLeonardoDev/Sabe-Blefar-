@@ -21,15 +21,22 @@ body{background:#0f172a;margin:0}
 .card .how{margin-top:1.4vw}
 .pr{display:flex;justify-content:space-between;align-items:center;background:#0f172a66;border:1px solid var(--bd);border-radius:10px;padding:.7vw 1.2vw;margin-bottom:.7vw;font-size:1.8vw}
 .pr small{color:var(--ac)}
-/* tela única dos poderes */
-.pwo{position:absolute;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1vw;background:radial-gradient(circle,#5b21b6f2,#0b0620f7);overflow:hidden;animation:pwin .4s ease-out;text-align:center}
-.pwo::before{content:'';position:absolute;inset:-60%;background:repeating-conic-gradient(#fbbf2426 0 10deg,transparent 10deg 20deg);animation:pwspin 8s linear infinite}
-.pwo>*{position:relative}
-.pwo .ic{font-size:13vw;line-height:1;animation:pwpop .7s cubic-bezier(.2,1.6,.4,1)}
-.pwo h2{margin:0;font-size:4.2vw;color:#fbbf24;letter-spacing:.25em;text-shadow:0 0 2vw #fbbf24}
-.pwo .who{font-size:3vw;font-weight:800}.pwo .det{font-size:2vw;color:#e9d5ff}
-@keyframes pwspin{to{transform:rotate(360deg)}}@keyframes pwpop{from{transform:scale(0) rotate(-120deg)}}@keyframes pwin{from{opacity:0}}
-@media(prefers-reduced-motion:reduce){.pwo::before,.pwo .ic{animation:none}}
+/* ---- tela da partida em tamanho de TV ---- */
+.tv{display:flex;flex-direction:column;padding:2.5vh 3.5vw}
+.tv .pls{display:flex;flex-wrap:wrap;gap:1vw;justify-content:center}
+.tv .pl{flex:1 1 0;min-width:9vw;max-width:16vw;padding:.9vw 1vw;border-radius:1.2vw}
+.tv .pl span{font-size:2vw}.tv .pl b{font-size:4.4vw}.tv .pl small{font-size:1.2vw}.tv .pl em{font-size:1.3vw}
+.tv .mid{flex:1;margin:0;padding-top:3vh;gap:5vw;align-items:center}
+.tv .ref small{font-size:1.8vw}.tv .ref strong{font-size:min(18vw,31vh)}.tv .ref em{font-size:2.4vw}
+.tv .pile{max-width:42vw;gap:2vw;font-size:2.2vw}
+.tv .pile .c.back{height:min(16.5vw,27vh);width:auto;aspect-ratio:2/3;border-radius:1vw;border-width:.25vw}
+.tv .cl{font-size:3.4vw}
+.tv .st{font-size:3.2vw;margin:.5vh 0}
+.tv .tm{height:1.2vh;max-width:60vw;border-radius:1vh}.tv .tm i{border-radius:1vh}
+.tv .log{font-size:1.8vw}
+.tv .ov .c.big{height:min(24vw,44vh);width:auto;aspect-ratio:2/3;font-size:2.2vw;border-radius:1.2vw}
+.tv .ov .c.big .cm{font-size:min(10vw,18vh)}
+.tv .ov h2{font-size:7vw}.tv .ov{font-size:2.2vw}
 </style>
 </head>
 <body>
@@ -39,7 +46,7 @@ body{background:#0f172a;margin:0}
 <script src="/common.js"></script>
 <script src="/audio.js"></script>
 <script>
-let S = null, toastN = 0, toastUntil = 0, pwN = 0, pwUntil = 0;
+let S = null, toastN = 0, toastUntil = 0;
 async function init() {
   let c = sessionStorage.sbroom; // F5 na TV mantém a mesma sala
   if (c) { const r = await fetch('/api/room/' + c).catch(() => null); if (!r || !r.ok) c = null; }
@@ -75,18 +82,13 @@ function draw() {
 function gameHTML(S) {
   const ph = S.phase, q = S.pend, A = S.ps[S.actor], busy = ph != 'over' && ph != 'reveal';
   const tag = i => i != S.actor || !busy ? '' : ph == 'window' ? '<em>pode acusar</em>' : ph == 'turn' ? '<em>vez · acusar?</em>' : ph == 'play' ? '<em>jogando</em>' : '';
-  const pls = S.ps.map((p, i) => `<div class="pl ${p.alive ? '' : 'dead'} ${i == S.actor && busy ? 'on' : ''}"><span>${p.n}</span><b>${p.pts}</b><small>${!p.alive ? (p.gone ? 'removido' : 'fora') : !p.conn ? 'desconectado' : p.cards + ' cartas'}</small>${p.alive && p.pw ? `<small>🔮 ${p.pw}</small>` : ''}${S.pend && S.pend.gag === i ? '<small>🔒 mordaça</small>' : ''}${tag(i)}</div>`).join('');
+  const pls = S.ps.map((p, i) => `<div class="pl ${p.alive ? '' : 'dead'} ${i == S.actor && busy ? 'on' : ''}"><span>${p.n}</span><b>${p.pts}</b><small>${!p.alive ? 'fora' : !p.conn ? 'desconectado' : p.cards + ' cartas'}</small>${tag(i)}</div>`).join('');
   const st = ph == 'window' ? `${A.n} pode acusar agora` : ph == 'turn' ? `Vez de ${A.n}: ${S.forced ? 'acusação obrigatória!' : 'acusar ou jogar'}` : ph == 'play' ? `${A.n} está escolhendo a carta` : '';
   let ov = '';
   if (ph == 'challenge' && S.ch) return `<div class="pls">${pls}</div>${chalHTML(S)}`;
   if (S.rev) { const r = S.rev, a = S.ps[r.by], b = S.ps[r.p];
-    ov = `<div class="ov">${face(r.card).replace('class="c ', 'class="c big ')}<h2 class="${r.ok ? 'bad' : 'ok'}">${r.ok ? 'MENTIRA!' : 'VERDADE!'}</h2><div>${a.n} acusou ${b.n} · ${ctext(r)}</div><div class="mu">${r.ok ? `${a.n} +2 · ${b.n} −${r.dbl ? 4 : 2}` : `${a.n} −1`}</div>${r.gold ? '<div class="mu">🃏 Carta dourada! Contou como verdade</div>' : ''}${r.dbl && r.ok ? '<div class="mu">🎲 Aposta dobrada!</div>' : ''}</div>`; }
+    ov = `<div class="ov">${face(r.card).replace('class="c ', 'class="c big ')}<h2 class="${r.ok ? 'bad' : 'ok'}">${r.ok ? 'MENTIRA!' : 'VERDADE!'}</h2><div>${a.n} acusou ${b.n} · ${ctext(r)}</div><div class="mu">${r.ok ? `${a.n} +2 · ${b.n} −2` : `${a.n} −1`}</div></div>`; }
   if (ph == 'over') { const w = S.ps[S.win]; ov = `<div class="ov"><h2 class="ok">🏆 ${w ? w.n : 'Sem vencedor'}</h2><div>venceu a partida!</div><div class="mu">O host pode jogar de novo pelo celular.</div></div>`; }
-  let pwo = '';
-  if (!S.fake && S.pw) { // poder usado: tela especial por ~4s
-    if (S.pw.n != pwN) { pwN = S.pw.n; pwUntil = Date.now() + 4000; setTimeout(draw, 4100); }
-    if (Date.now() < pwUntil) pwo = pwHTML(S);
-  }
   let toast = '';
   if (S.fake) { if (S.nud) toast = `<div class="toast">👋 ${S.ps[S.nud.f].n} avisou ${S.ps[S.nud.t].n}!</div>`; }
   else {
@@ -97,14 +99,7 @@ function gameHTML(S) {
   <div class="mid"><div class="ref"><small>REFERÊNCIA</small><strong>${S.ref}</strong><em>${RK[S.ref]}</em></div>
   <div class="pile"><div class="c back"></div><div>${q ? `<b>${S.ps[q.p].n}</b> jogou e disse<div class="cl">${ctext(q)}</div>` : '<span class="mu">Mesa vazia</span>'}</div></div></div>
   <div class="st">${st}</div><div class="tm"><i id="bar"></i></div>
-  <div class="log">${S.log.map(l => `<div>${l}</div>`).join('')}</div>${ov}${toast}${pwo}`;
-}
-function pwHTML(S) {
-  const e = S.pw, by = S.ps[e.by], P = e.k && PW[e.k];
-  const det = !e.k ? 'Ninguém sabe qual foi… 🤫' : e.k == 'gag' ? `${S.ps[e.to].n} não poderá acusar a próxima jogada`
-    : e.k == 'radar' ? (e.res ? '🚨 A última jogada foi BLEFE! (−1 ponto)' : '✅ A última jogada era VERDADE (−1 ponto)')
-    : e.k == 'free' ? 'Acusação obrigatória dispensada' : `Nova referência: ${S.ref}`;
-  return `<div class="pwo"><div class="ic">${P ? P.i : '❓'}</div><h2>PODER!</h2><div class="who">${by.n} usou ${P ? P.n : 'um poder secreto'}</div><div class="det">${det}</div></div>`;
+  <div class="log">${S.log.map(l => `<div>${l}</div>`).join('')}</div>${ov}${toast}`;
 }
 function chalHTML(S) {
   const c = S.ch, A = S.ps[c.by], B = S.ps[c.tg], done = c.step == 'done';
@@ -132,10 +127,8 @@ addEventListener('pointerdown', firstTouch); addEventListener('keydown', firstTo
 snd.onclick = () => { if (Date.now() - unlockedAt < 500) return; mutedTV = SB.toggleMute(); sndLabel(); };
 function sound(s) {
   const pv = PV, ph = s.phase; PV = s;
-  if (!pv) pwN = s.pw ? s.pw.n : 0; // não repete um poder antigo ao recarregar a TV
   SB.music(ph == 'challenge' ? 'challenge' : (ph == 'lobby' || ph == 'tutorial') ? 'lobby' : ph == 'over' ? null : 'game');
   if (!pv) return;
-  if (s.pw && (!pv.pw || s.pw.n != pv.pw.n)) SB.sfx('power'); // poder usado
   const inGame = ['play', 'window', 'turn'].includes(ph);
   if (inGame && (s.actor != pv.actor || pv.phase == 'lobby' || pv.phase == 'tutorial')) SB.sfx('whoosh'); // trocou a pessoa da vez
   if (ph == 'reveal' && pv.phase != 'reveal' && s.rev) SB.sfx(s.rev.ok ? 'boom' : 'flash');             // acusou: acertou = boom, errou = flash

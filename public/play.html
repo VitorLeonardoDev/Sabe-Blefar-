@@ -5,20 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Sabe Blefar? – Celular</title>
 <link rel="stylesheet" href="/style.css">
-<style>body{margin:0}.phone{min-height:100vh;border:0;border-radius:0;max-width:520px;margin:0 auto;padding:16px}.hand .c{width:64px;height:96px}
-.pr{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--bd);border-radius:10px;margin-top:6px}.pr .ch{flex:none;padding:4px 10px}
-.pws{margin-top:14px}.pwb{display:flex;align-items:center;gap:12px;width:100%;margin-top:6px;padding:10px 12px;border-radius:12px;border:1px solid var(--ac);background:transparent;color:var(--tx);text-align:left;font:inherit;cursor:pointer}
-.pwb span{font-size:28px}.pwb b{display:block}.pwb small{color:var(--mu)}.pwb:disabled{opacity:.4;border-color:var(--bd);cursor:default}
-.dsh2{margin-top:26px}.dare{display:block;width:100%;margin-top:10px;padding:22px 12px;font:inherit;font-size:21px;font-weight:900;letter-spacing:.03em;border:0;border-radius:16px;background:linear-gradient(135deg,#7c3aed,#db2777);color:#fff;box-shadow:0 6px 18px #7c3aed66;cursor:pointer}
-.dare small{display:block;font-size:13px;font-weight:600;opacity:.9;letter-spacing:0}
-.rmv{margin-top:16px;color:var(--mu)}</style>
+<style>body{margin:0}.phone{min-height:100vh;border:0;border-radius:0;max-width:520px;margin:0 auto;padding:16px}.hand .c{width:64px;height:96px}</style>
 </head>
 <body>
 <div class="phone" id="ph"></div>
 <script src="/common.js"></script>
 <script>
 let C = (location.pathname.slice(1).match(/^[A-Za-z]{4}$/) || [''])[0].toUpperCase();
-let ME = null, S = null, es = null, sel = -1, cl = '', cn = 0, dsel = [], pk = '', PWON = true, TN = 6, TUTON = true, down = false, wasMine = false, lastNud = 0;
+let ME = null, S = null, es = null, sel = -1, cl = '', cn = 0, dsel = [], TN = 6, TUTON = true, down = false, wasMine = false, lastNud = 0;
 let JE = '', JN = localStorage.sbname || '', JC = C;
 
 try { const sv = C && JSON.parse(localStorage['sb_' + C] || 'null'); if (sv) { ME = sv; connect(); } } catch (e) {}
@@ -37,12 +31,11 @@ async function join() {
 function connect() {
   if (es) es.close();
   es = listen(`/api/stream/${C}?t=${ME.token}`, s => {
-    if (s.kicked) { es.close(); localStorage.removeItem('sb_' + C); ME = null; S = null; JE = 'Você foi removido da sala.'; C = ''; history.replaceState(null, '', '/'); draw(); return; }
     down = false;
     const mine = !!s.me && ((s.actor == s.me.id && ['window', 'turn', 'play'].includes(s.phase)) || (s.phase == 'challenge' && s.ch && chActor(s) == s.me.id));
     if (mine && !wasMine && navigator.vibrate) navigator.vibrate(150);
     if (s.nud && s.nud.n != lastNud) { lastNud = s.nud.n; if (s.me && s.nud.t == s.me.id && navigator.vibrate) navigator.vibrate([100, 60, 100]); }
-    wasMine = mine; if (!mine) { sel = -1; cl = ''; cn = 0; dsel = []; pk = ''; }
+    wasMine = mine; if (!mine) { sel = -1; cl = ''; cn = 0; dsel = []; }
     S = s; draw();
   }, () => {
     down = true; draw();
@@ -53,18 +46,6 @@ const act = (a, x = {}) => fetch('/api/act', { method: 'POST', body: JSON.string
 const chActor = s => s.ch.step == 'pick' ? s.ch.tg : s.ch.step == 'guess' ? s.ch.by : -1;
 function dtoggle(n) { const k = dsel.indexOf(n); if (k >= 0) dsel.splice(k, 1); else if (dsel.length < S.ch.size) dsel.push(n); draw(); }
 function chal(to) { if (confirm(`Desafiar ${S.ps[to].n}? Se você errar, perde ${3} pontos e ${S.ps[to].n} vence a partida.`)) act('challenge', { to }); }
-function kick(i) { if (confirm(`Remover ${S.ps[i].n} da sala?`)) act('kick', { to: i }); }
-function pwUse(k) {
-  if (k == 'gag') { pk = 'gag'; return draw(); }
-  if (k == 'swap') { if (sel < 0) return alert('Toque primeiro na carta da sua mão que você quer trocar.'); act('power', { k, i: sel }); sel = -1; return; }
-  if (k == 'radar' && !confirm('Usar o Radar custa 1 ponto. Continuar?')) return;
-  act('power', { k });
-}
-function rmHTML() { // só o host: remover jogador (útil para quem caiu e não volta)
-  if (!S || !S.me || S.me.id != 0 || ['lobby', 'tutorial', 'over'].includes(S.phase)) return '';
-  const rows = S.ps.map((p, i) => i && p.alive ? `<div class="pr"><span>${p.n}${p.conn ? '' : ' · desconectado'}</span><button class="ch" onclick="kick(${i})">✕ Remover</button></div>` : '').join('');
-  return rows ? `<details class="rmv"><summary>Remover jogador</summary>${rows}</details>` : '';
-}
 function pick(i) { if (S.actor == S.me.id && S.phase == 'play') { sel = i; draw(); } }
 
 function joinHTML() {
@@ -81,12 +62,11 @@ function draw() {
   const head = `<div class="top"><span>${P.n}</span><b>${ph == 'lobby' ? 'Sala ' + S.code : P.pts + ' pts'}</b></div>${down ? '<div class="warn">Reconectando…</div>' : ''}`;
   if (ph == 'lobby') {
     const host = me.id == 0;
-    E.innerHTML = head + `<p class="hi">✅ Você está na sala!</p><p class="mu">${S.ps.length} na sala:</p>${S.ps.map((p, i) => `<div class="pr"><span>${p.n}${i ? (p.conn ? '' : ' · desconectado') : ' · host'}</span>${host && i ? `<button class="ch" onclick="kick(${i})">✕ Remover</button>` : ''}</div>`).join('')}` +
+    E.innerHTML = head + `<p class="hi">✅ Você está na sala!</p><p class="mu">${S.ps.length} na sala: ${S.ps.map(p => p.n).join(', ')}</p>` +
       (host ? `<p class="mu">Você é o host. Total de jogadores (bots completam):</p>
       <select style="width:100%;padding:10px" onchange="TN=+this.value">${[4, 5, 6, 7, 8, 9, 10].map(k => `<option ${k == TN ? 'selected' : ''}>${k}</option>`).join('')}</select>
       <label class="mu" style="display:block;margin-top:12px"><input type="checkbox" ${TUTON ? 'checked' : ''} onchange="TUTON=this.checked"> Ver tutorial na TV antes de começar</label>
-      <label class="mu" style="display:block;margin-top:8px"><input type="checkbox" ${PWON ? 'checked' : ''} onchange="PWON=this.checked"> Modo poderes</label>
-      <button class="bt" onclick="act('start',{n:TN,tut:TUTON,pw:PWON})">Começar partida</button>` : '<p class="mu">Aguarde: o host vai iniciar a partida.</p>');
+      <button class="bt" onclick="act('start',{n:TN,tut:TUTON})">Começar partida</button>` : '<p class="mu">Aguarde: o host vai iniciar a partida.</p>');
     return;
   }
   if (ph == 'tutorial') {
@@ -116,7 +96,7 @@ function draw() {
       const mineDeck = me.chDeck && me.chDeck.length ? `<p class="mu">Seu deck secreto:</p><div class="dg">${N.map(n => { const g = c.guesses.find(x => x.n == n); return `<button class="${me.chDeck.includes(n) ? 'own' : ''} ${g ? (g.hit ? 'hit' : 'miss') : ''}" disabled>${n}</button>`; }).join('')}</div>` : '';
       m += `<p class="mu">${c.step == 'pick' ? B.n + ' está escolhendo o deck…' : A.n + ' está dando palpites…'} Olhe para a TV!</p>${mineDeck}`;
     }
-    E.innerHTML = head + m + rmHTML();
+    E.innerHTML = head + m;
     return;
   }
   const mine = S.actor == me.id && ['window', 'turn', 'play'].includes(ph), can = mine && ph == 'play';
@@ -126,7 +106,7 @@ function draw() {
   else if (mine && !can) {
     const f = S.forced;
     m = `<p class="hi">${ph == 'window' ? 'Pode acusar a jogada de' : 'Acusar a jogada de'} <b>${S.ps[q.p].n}</b>?<br><small class="mu">${ctext(q)}</small></p>${f ? '<p class="warn">Acusação obrigatória!</p>' : ''}
-    ${me.gagged ? '<p class="warn">🔒 Mordaça! Você não pode acusar esta jogada.</p>' : '<button class="bt bad" onclick="act(\'accuse\')">ACUSAR</button>'}${f ? '' : `<button class="bt2" onclick="act('pass')">${ph == 'window' ? 'Deixar passar' : 'Passar e jogar'}</button>`}`;
+    <button class="bt bad" onclick="act('accuse')">ACUSAR</button>${f ? '' : `<button class="bt2" onclick="act('pass')">${ph == 'window' ? 'Deixar passar' : 'Passar e jogar'}</button>`}`;
   } else if (can) {
     const ok = sel >= 0 && cl && (cl != 'e' || cn);
     m = `<p class="mu">Sua vez! Referência: <b>${S.ref}</b>. Escolha uma carta e o que vai declarar.</p>
@@ -138,17 +118,10 @@ function draw() {
   const hand = me.hand.map((c, i) => face(c).replace('class="c ', `class="c ${i == sel && can ? 'sel' : ''} `).replace('<div', `<div onclick="pick(${i})"`)).join('');
   const others = S.ps.map((p, i) => ({ p, i })).filter(x => x.i != me.id && x.p.alive);
   const dares = ['play', 'window', 'turn'].includes(ph) && P.alive ? S.ps.map((p, i) => ({ p, i })).filter(x => x.i != me.id && x.p.alive && x.p.pts >= 8 && x.p.pts <= 9 && P.pts < x.p.pts) : [];
-  const dec = (ph == 'window' || ph == 'turn') && !!q, pl = can;
-  const okPw = k => S.pwOn && P.alive && S.actor == me.id && !me.used && me.pw.includes(k) && (!ATKS.includes(k) || P.pts < 8) && !!({
-    spy: dec, radar: dec && P.pts >= 2, gag: pl, shield: dec || pl, gold: pl, dbl: pl, swap: pl, shuf: pl, free: ph == 'turn' && me.miss >= 2 && !me.gagged })[k];
-  const spyHTML = me.spy ? `<p class="mu">👁️ Você espiou: a carta virada é</p>${face(me.spy)}` : '';
-  const pwsHTML = S.pwOn && P.alive && ph != 'over' && me.pw.length ? `<div class="pws"><small class="mu">🔮 Seus poderes${me.used ? ' (você já usou um agora)' : ''}</small>
-    ${me.pw.map(k => `<button class="pwb" ${okPw(k) ? '' : 'disabled'} onclick="pwUse('${k}')"><span>${PW[k].i}</span><div><b>${PW[k].n}</b><small>${PW[k].d}</small></div></button>`).join('')}
-    ${pk == 'gag' ? `<div class="av"><small class="mu">Quem não poderá acusar?</small>${others.map(x => `<button class="ch" onclick="act('power',{k:'gag',to:${x.i}});pk=''">${x.p.n}</button>`).join('')}</div>` : ''}</div>` : '';
-  E.innerHTML = head + (mine ? '<div class="tm"><i id="bar"></i></div>' : '') + m + spyHTML + `<div class="hand">${hand}</div>` + pwsHTML +
-    (P.alive && ph != 'over' ? `<div class="av"><small class="mu">Avisar:</small>${others.map(x => `<button class="ch" onclick="act('nudge',{to:${x.i}})">${x.p.n}</button>`).join('')}</div>` : '') +
-    (dares.length ? `<div class="dsh2"><small class="mu">⚔️ Alguém está quase ganhando! Tente virar o jogo:</small>${dares.map(x => `<button class="dare" onclick="chal(${x.i})">⚔️ DESAFIAR ${x.p.n.toUpperCase()}<small>${x.p.pts} pontos</small></button>`).join('')}</div>` : '') +
-    (me.id == 0 && ph != 'over' ? `<button class="bt2" style="margin-top:18px" onclick="if(confirm('Voltar ao lobby? A partida atual será encerrada.'))act('lobby')">Voltar ao lobby</button>` : '') + rmHTML();
+  E.innerHTML = head + (mine ? '<div class="tm"><i id="bar"></i></div>' : '') + m + `<div class="hand">${hand}</div>` +
+    (dares.length ? `<div class="dsh"><small class="mu">Quase ganhando! Desafiar:</small>${dares.map(x => `<button class="ch" onclick="chal(${x.i})">⚔️ ${x.p.n} (${x.p.pts})</button>`).join('')}</div>` : '') +
+    (P.alive && ph != 'over' ? `<div class="av"><small class="mu">Avisar:</small>${others.map(x => `<button class="ch" onclick="act('nudge',{to:${x.i}})">${x.p.n}</button>`).join('')}</div>` : '');
+  if (me.id == 0 && ph != 'over') E.innerHTML += `<button class="bt2" onclick="if(confirm('Voltar ao lobby? A partida atual será encerrada.'))act('lobby')">Voltar ao lobby</button>`;
 }
 setInterval(() => { const b = $('bar'); if (b && S) b.style.width = S.left ? Math.max(0, (S.end - Date.now()) / 300) + '%' : '0'; }, 200);
 draw();
