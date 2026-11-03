@@ -93,7 +93,8 @@ function gameHTML(S) {
     if (S.nud && S.nud.n != toastN) { toastN = S.nud.n; toastUntil = Date.now() + 5000; setTimeout(draw, 5100); }
     if (S.nud && Date.now() < toastUntil) toast = `<div class="toast">👋 ${S.ps[S.nud.f].n} avisou ${S.ps[S.nud.t].n}!</div>`;
   }
-  return `<div class="pls">${pls}</div>
+  const event = S.event ? `<div class="cap" style="border-color:#f59e0b;background:#78350f66">⚡ ${S.event.n} · ${S.event.d}</div>` : '';
+  return `${event}<div class="pls">${pls}</div>
   <div class="mid"><div class="ref"><small>REFERÊNCIA</small><strong>${S.ref}</strong><em>${RK[S.ref]}</em></div>
   <div class="pile"><div class="c back"></div><div>${q ? `<b>${S.ps[q.p].n}</b> jogou e disse<div class="cl">${ctext(q)}</div>` : '<span class="mu">Mesa vazia</span>'}</div></div></div>
   <div class="st">${st}</div><div class="tm"><i id="bar"></i></div>
@@ -154,7 +155,7 @@ function tickCheck() { // relógio nos últimos 5s da vez de uma pessoa (bots n�
   const sec = Math.ceil((S.end - Date.now()) / 1000);
   if (sec >= 1 && sec <= 5) { if (sec != tkSec) { tkSec = sec; SB.sfx('tick', sec & 1); } } else tkSec = 0;
 }
-setInterval(() => { const b = $('bar'); if (b && S) b.style.width = S.left ? Math.max(0, (S.end - Date.now()) / 300) + '%' : '0'; tickCheck(); }, 200);
+setInterval(() => { const b = $('bar'); if (b && S) b.style.width = S.left ? Math.max(0, (S.end - Date.now()) / Math.max(1,S.duration || 30000) * 100) + '%' : '0'; tickCheck(); }, 200);
 init();
 </script>
 </body>

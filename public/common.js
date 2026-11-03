@@ -43,5 +43,14 @@ const PW = {
   dbl: { i: '🎲', n: 'Aposta dobrada', d: 'Seu próximo blefe vale +4 (ou −4 se for pego)' },
   swap: { i: '🔄', n: 'Troca', d: 'Troque uma carta da mão por outra do baralho' },
   shuf: { i: '🎡', n: 'Nova referência', d: 'Sorteia outra carta de referência' },
+  echo: { i: '📣', n: 'Eco', d: 'Receba +1 ponto imediatamente' },
+  steal: { i: '🦹', n: 'Roubo', d: 'Roube 1 ponto do autor da jogada' },
+  revive: { i: '✨', n: 'Ressurreição', d: 'Tente trazer alguém eliminado de volta' },
+  chaos: { i: '🌀', n: 'Caos', d: 'Ativa um evento caótico' },
+  freeze: { i: '⏳', n: 'Congelar', d: 'Adiciona 5 segundos ao relógio' },
+  double: { i: '💥', n: 'Dobro', d: 'Dobra a recompensa ou penalidade do blefe' },
+  mirror: { i: '🪞', n: 'Espelho', d: 'Ganha uma proteção contra perda de pontos' },
+  vote: { i: '🗳️', n: 'Influência', d: 'Ganhe 1 ponto por mobilizar a mesa' },
+  wild: { i: '🌈', n: 'Coringa', d: 'Sua próxima carta é dourada e vale em dobro' },
 };
 const ATKS = ['spy', 'gag', 'radar']; // bloqueados para quem tem 8 ou 9 pontos

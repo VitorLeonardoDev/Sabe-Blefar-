@@ -122,7 +122,7 @@ function draw() {
   const mine = S.actor == me.id && ['window', 'turn', 'play'].includes(ph), can = mine && ph == 'play';
   let m = '';
   if (ph == 'over') m = `<p class="hi">${S.win == me.id ? '🏆 Você venceu!' : 'Fim de jogo: venceu ' + (S.ps[S.win] ? S.ps[S.win].n : '—')}</p>` + (me.id == 0 ? `<button class="bt" onclick="act('again')">Jogar de novo</button>` : '');
-  else if (!P.alive) m = '<p class="mu">Você foi eliminado. Assistindo à partida.</p>';
+  else if (!P.alive) m = `<p class="warn">Você foi eliminado, mas ainda pode voltar!</p><p class="mu">Acompanhe os eventos de retorno na TV.</p>`;
   else if (mine && !can) {
     const f = S.forced;
     m = `<p class="hi">${ph == 'window' ? 'Pode acusar a jogada de' : 'Acusar a jogada de'} <b>${S.ps[q.p].n}</b>?<br><small class="mu">${ctext(q)}</small></p>${f ? '<p class="warn">Acusação obrigatória!</p>' : ''}
@@ -135,22 +135,23 @@ function draw() {
     <button class="bt" ${ok ? '' : 'disabled'} onclick="act('play',{i:sel,t:cl,n:cn})">Jogar carta virada</button>`;
   } else if (ph == 'reveal') m = '<p class="mu">Olhe para a TV…</p>';
   else m = `<p class="mu">Aguarde: ${S.ps[S.actor].n} ${ph == 'play' ? 'está jogando' : 'decide se acusa'}.</p>`;
+  const eventHTML = S.event ? `<div class="warn">⚡ ${S.event.n}: ${S.event.d}</div>` : '';
   const hand = me.hand.map((c, i) => face(c).replace('class="c ', `class="c ${i == sel && can ? 'sel' : ''} `).replace('<div', `<div onclick="pick(${i})"`)).join('');
   const others = S.ps.map((p, i) => ({ p, i })).filter(x => x.i != me.id && x.p.alive);
   const dares = ['play', 'window', 'turn'].includes(ph) && P.alive ? S.ps.map((p, i) => ({ p, i })).filter(x => x.i != me.id && x.p.alive && x.p.pts >= 8 && x.p.pts <= 9 && P.pts < x.p.pts) : [];
   const dec = (ph == 'window' || ph == 'turn') && !!q, pl = can;
   const okPw = k => S.pwOn && P.alive && S.actor == me.id && !me.used && me.pw.includes(k) && (!ATKS.includes(k) || P.pts < 8) && !!({
-    spy: dec, radar: dec && P.pts >= 2, gag: pl, shield: dec || pl, gold: pl, dbl: pl, swap: pl, shuf: pl, free: ph == 'turn' && me.miss >= 2 && !me.gagged })[k];
+    spy: dec, radar: dec && P.pts >= 2, gag: dec, shield: pl, gold: pl, dbl: pl, double:pl, swap: pl && sel >= 0, shuf: pl, free: ph == 'turn' && me.miss >= 2 && !me.gagged, echo:pl, steal:dec, revive:dec, chaos:pl, freeze:dec, mirror:pl, vote:dec, wild:pl })[k];
   const spyHTML = me.spy ? `<p class="mu">👁️ Você espiou: a carta virada é</p>${face(me.spy)}` : '';
   const pwsHTML = S.pwOn && P.alive && ph != 'over' && me.pw.length ? `<div class="pws"><small class="mu">🔮 Seus poderes${me.used ? ' (você já usou um agora)' : ''}</small>
     ${me.pw.map(k => `<button class="pwb" ${okPw(k) ? '' : 'disabled'} onclick="pwUse('${k}')"><span>${PW[k].i}</span><div><b>${PW[k].n}</b><small>${PW[k].d}</small></div></button>`).join('')}
     ${pk == 'gag' ? `<div class="av"><small class="mu">Quem não poderá acusar?</small>${others.map(x => `<button class="ch" onclick="act('power',{k:'gag',to:${x.i}});pk=''">${x.p.n}</button>`).join('')}</div>` : ''}</div>` : '';
-  E.innerHTML = head + (mine ? '<div class="tm"><i id="bar"></i></div>' : '') + m + spyHTML + `<div class="hand">${hand}</div>` + pwsHTML +
+  E.innerHTML = head + eventHTML + (mine ? '<div class="tm"><i id="bar"></i></div>' : '') + m + spyHTML + `<div class="hand">${hand}</div>` + pwsHTML +
     (P.alive && ph != 'over' ? `<div class="av"><small class="mu">Avisar:</small>${others.map(x => `<button class="ch" onclick="act('nudge',{to:${x.i}})">${x.p.n}</button>`).join('')}</div>` : '') +
     (dares.length ? `<div class="dsh2"><small class="mu">⚔️ Alguém está quase ganhando! Tente virar o jogo:</small>${dares.map(x => `<button class="dare" onclick="chal(${x.i})">⚔️ DESAFIAR ${x.p.n.toUpperCase()}<small>${x.p.pts} pontos</small></button>`).join('')}</div>` : '') +
     (me.id == 0 && ph != 'over' ? `<button class="bt2" style="margin-top:18px" onclick="if(confirm('Voltar ao lobby? A partida atual será encerrada.'))act('lobby')">Voltar ao lobby</button>` : '') + rmHTML();
 }
-setInterval(() => { const b = $('bar'); if (b && S) b.style.width = S.left ? Math.max(0, (S.end - Date.now()) / 300) + '%' : '0'; }, 200);
+setInterval(() => { const b = $('bar'); if (b && S) b.style.width = S.left ? Math.max(0, (S.end - Date.now()) / Math.max(1,S.duration || 30000) * 100) + '%' : '0'; }, 200);
 draw();
 </script>
 </body>
