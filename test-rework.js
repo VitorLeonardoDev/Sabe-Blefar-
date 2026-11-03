@@ -1,0 +1,20 @@
+// Smoke tests das novas mecânicas da edição Caos.
+process.env.SB_FAST = '1';
+const { Room } = require('./engine');
+const assert = (v, m) => { if (!v) throw new Error('FALHOU: ' + m); console.log('ok - ' + m); };
+const r = new Room('CHAOS', () => {});
+['A1','B1','C1','D1'].forEach(n => r.join(n));
+r.start(4, false, true); clearTimeout(r.T);
+assert(r.pwOn && r.ps.every(p => p.pw.length === 1), 'modo poderes distribui poder inicial');
+r.ps[2].alive = 0; r.ps[2].pts = 0; r.revivePool = 1; r.offerRevive();
+assert(r.ps[2].alive && r.ps[2].pts === 2 && r.ps[2].revived, 'retorno recupera eliminado com 2 pontos');
+r.phase = 'play'; r.actor = 0; r.cur = 0; r.pend = null; r.ps[0].pw = ['shield']; r.ps[0].used = false;
+r.usePower(0, 'shield');
+assert(r.ps[0].shield && !r.ps[0].pw.includes('shield'), 'escudo é ativado e consumido');
+const before = r.ps[0].pts; r.hit(r.ps[0], -2);
+assert(r.ps[0].pts === before, 'escudo anula a próxima perda');
+r.event = {k:'turbo'}; r.go(); clearTimeout(r.T);
+assert(r.duration < 18000, 'evento turbo reduz duração da decisão');
+const tv = r.view(null), phone = r.view(0);
+assert(tv.event && !tv.me && phone.me.pw && tv.ps.every(p => !p.hand), 'TV recebe evento sem dados privados das mãos');
+console.log('NOVAS MECÂNICAS OK');

@@ -6,7 +6,9 @@ const NAMES = ['Ana', 'Beto', 'Cris', 'Davi', 'Eva', 'Fabi', 'Gui', 'Hugo', 'Iar
 const rnd = n => Math.floor(Math.random() * n);
 const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = rnd(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 const truth = q => q.t == 'e' ? q.card.v == q.n : q.t == 's' ? q.card.v > q.rb : q.card.v < q.rb;
-const HUMAN_MS = 30000, REVEAL_MS = 6000, TUT_LEN = 10;
+const HUMAN_MS = 30000, REVEAL_MS = 4200, TUT_LEN = 10;
+const POWERS = ['shield','gold','dbl','swap','shuf','spy','gag','radar','free','echo','steal','revive','chaos','freeze','double','mirror','vote','wild'];
+const EVENTS = [{k:'turbo',n:'MODO TURBO',d:'Relógio reduzido nesta rodada.'},{k:'bounty',n:'CAÇA AO BLEFE',d:'Acusações corretas valem +3.'},{k:'comeback',n:'SEGUNDA CHANCE',d:'Jogadores eliminados podem disputar o retorno.'},{k:'chaos',n:'CAOS NA MESA',d:'A próxima declaração vale pontos em dobro.'},{k:'calm',n:'PAUSA TÁTICA',d:'Tempo extra para pensar.'}];
 // Modo Desafio: o desafiado esconde CH_DECK cartas (de 1 a CH_POOL); o desafiante tenta acertar CH_NEED delas em até CH_TRIES palpites.
 // (CH_TRIES = 3 vira "os 3 palpites precisam estar certos"; 5 deixa a disputa mais equilibrada: ~50% de chance.)
 const CH_POOL = 10, CH_DECK = 5, CH_NEED = 3, CH_TRIES = 5, CH_PTS = 3, CH_PICK_MS = 30000, CH_GUESS_MS = 20000, CH_DONE_MS = 7000;
@@ -14,11 +16,11 @@ const CH_POOL = 10, CH_DECK = 5, CH_NEED = 3, CH_TRIES = 5, CH_PTS = 3, CH_PICK_
 class Room {
   constructor(code, onChange) {
     Object.assign(this, { code, onChange, clients: new Set(), ps: [], phase: 'lobby', ref: 0, pend: null, rev: null,
-      win: null, actor: -1, cur: 0, log: [], nud: null, nn: 0, dl: 0, tut: -1, n: 6, T: null, seen: Date.now(), ch: null, resume: null });
+      win: null, actor: -1, cur: 0, log: [], nud: null, nn: 0, dl: 0, tut: -1, n: 6, T: null, seen: Date.now(), ch: null, resume: null, pwOn: true, round: 0, event: null, eventN: 0, pwEvent: null, revivePool: 1 });
   }
   emit() { this.seen = Date.now(); this.onChange(this); }
   say(m) { this.log.unshift(m); this.log.length = Math.min(4, this.log.length); }
-  mkp(n, bot) { return { id: this.ps.length, tk: bot ? '' : crypto.randomBytes(8).toString('hex'), n, pts: 5, hand: [], alive: 1, miss: 0, bot, conn: bot }; }
+  mkp(n, bot) { return { id: this.ps.length, tk: bot ? '' : crypto.randomBytes(8).toString('hex'), n, pts: 5, hand: [], alive: 1, miss: 0, bot, conn: bot, pw: [], used: false, shield: false, gold: false, dbl: false, gagged: false, revived: false }; }
   al() { return this.ps.filter(p => p.alive).map(p => p.id); }
   nextA(i) { const n = this.ps.length; for (let k = 1; k <= n; k++) { const j = (i + k) % n; if (this.ps[j].alive) return j; } return i; }
   back2(i) { const a = this.al(); return a[(a.indexOf(i) - 2 + a.length * 2) % a.length]; }
@@ -31,7 +33,8 @@ class Room {
     if (this.ps.some(p => p.n == name)) return { err: 'Esse nome já está na sala.' };
     const p = this.mkp(name, 0); this.ps.push(p); this.emit(); return p;
   }
-  start(n, tut) {
+  start(n, tut, pw = true) {
+    this.pwOn = pw !== false; this.round = 0; this.event = null; this.eventN = 0; this.revivePool = 1;
     this.n = Math.min(10, Math.max(4, this.ps.length, n | 0));
     if (tut) { this.phase = 'tutorial'; this.tut = -1; return this.tutGo(1); }
     this.begin();
@@ -44,7 +47,7 @@ class Room {
   }
   begin() {
     for (const x of NAMES) { if (this.ps.length >= this.n) break; if (!this.ps.some(p => p.n == x)) this.ps.push(this.mkp(x, 1)); }
-    this.deal(); this.cur = 0; this.say('Partida iniciada!'); this.startTurn();
+    this.deal(); this.cur = 0; this.ps.forEach(p => { p.pw = this.pwOn ? [POWERS[rnd(POWERS.length)]] : []; p.used = false; }); this.say('Partida iniciada!'); this.startTurn();
   }
   again() {
     clearTimeout(this.T); this.ps = this.ps.filter(p => !p.bot);
@@ -65,8 +68,8 @@ class Room {
   go() {
     clearTimeout(this.T);
     if (this.phase == 'over' || this.phase == 'reveal') return this.emit();
-    const a = this.actor, P = this.ps[a], d = (P.bot ? 2400 + rnd(2000) : HUMAN_MS) * F;
-    this.dl = Date.now() + d;
+    const a = this.actor, P = this.ps[a]; let base = this.phase == 'play' ? 18000 : this.phase == 'window' ? 9000 : 11000; if (this.event?.k == 'turbo') base = Math.max(5000, base - 4000); if (this.event?.k == 'calm') base += 7000; const d = (P.bot ? 1800 + rnd(1300) : base) * F;
+    this.duration = d; this.dl = Date.now() + d;
     if (this.phase == 'turn' && P.miss >= 2) { // acusação obrigatória: um bot cutuca
       const b = this.ps.filter(x => x.bot && x.alive && x.id != a)[0];
       if (b) setTimeout(() => { if (this.actor == a && this.phase == 'turn') this.nudge(b.id, a); }, 1800 * F);
@@ -102,7 +105,7 @@ class Room {
   play(a, i, c) {
     clearTimeout(this.T);
     const P = this.ps[a], card = P.hand.splice(i, 1)[0];
-    this.pend = { p: a, card, t: c.t, n: c.n, rb: this.ref };
+    this.pend = { p: a, card, t: c.t, n: c.n, rb: this.ref, gold: !!P.gold, dbl: !!P.dbl }; P.gold = false; P.dbl = false; P.used = false; this.round++; if (this.round % 3 == 0) this.triggerEvent();
     if (c.t == 'e') this.ref = c.n;
     this.say(`${P.n} jogou uma carta`);
     if (this.al().length >= 4) { this.actor = this.back2(a); this.phase = 'window'; this.go(); }
@@ -112,14 +115,14 @@ class Room {
     clearTimeout(this.T); const a = this.actor;
     if (this.phase == 'window') { this.cur = this.nextA(this.pend.p); return this.startTurn(); }
     const P = this.ps[a], q = this.pend; P.miss++;
-    if (!truth(q)) this.ps[q.p].pts += 2;
+    if (!q.gold && !truth(q)) this.hit(this.ps[q.p], q.dbl ? 4 : 2);
     this.pend = null; this.say(`${P.n} não acusou`);
     if (this.chk()) return; this.enterPlay();
   }
   accuse(by) {
     clearTimeout(this.T);
     const q = this.pend, ok = !truth(q), A = this.ps[by], B = this.ps[q.p];
-    if (ok) { A.pts += 2; B.pts -= 2; } else A.pts -= 1;
+    if (ok) { A.pts += 2; B.pts -= 2; } else this.hit(A, -1);
     A.miss = 0; this.ref = q.card.v;
     this.rev = { q, ok, by, fromWin: this.phase == 'window' }; this.pend = null; this.phase = 'reveal'; this.dl = 0;
     this.say(`${A.n} acusou ${B.n}: ${ok ? 'era blefe!' : 'era verdade'}`);
@@ -133,7 +136,8 @@ class Room {
     else { this.cur = this.nextA(r.by); this.startTurn(); }
   }
   chk() {
-    this.ps.forEach(p => { if (p.alive && p.pts <= 0) { p.alive = 0; p.hand = []; this.say(`${p.n} foi eliminado`); } });
+    this.ps.forEach(p => { if (p.alive && p.pts <= 0) { p.alive = 0; p.hand = []; p.eliminatedAt = this.round; this.say(`${p.n} foi eliminado — ainda pode voltar pelo evento de retorno`); } });
+    if (this.event?.k == 'comeback') this.offerRevive();
     const a = this.al(), w = a.filter(i => this.ps[i].pts >= 10);
     if (w.length || a.length <= 1) {
       this.phase = 'over'; this.dl = 0; clearTimeout(this.T);
@@ -160,7 +164,7 @@ class Room {
     clearTimeout(this.T); const c = this.ch;
     if (c.step == 'done') { this.dl = 0; this.T = setTimeout(() => this.chEnd(), CH_DONE_MS * F); return this.emit(); }
     const P = this.ps[this.chWho()], d = (P.bot ? 1800 + rnd(1400) : c.step == 'pick' ? CH_PICK_MS : CH_GUESS_MS) * F;
-    this.dl = Date.now() + d; this.T = setTimeout(() => this.chTimeout(), d); this.emit();
+    this.duration = d; this.dl = Date.now() + d; this.T = setTimeout(() => this.chTimeout(), d); this.emit();
   }
   chTimeout() { // tempo esgotado (ou bot): joga aleatório
     const c = this.ch; if (!c) return;
@@ -194,12 +198,49 @@ class Room {
     }
     this.go();
   }
+  triggerEvent() {
+    this.event = EVENTS[rnd(EVENTS.length)]; this.eventN++; this.say(`⚡ EVENTO: ${this.event.n} — ${this.event.d}`);
+    if (this.event.k == 'comeback') this.offerRevive();
+  }
+  offerRevive() {
+    const out = this.ps.filter(p => !p.alive && !p.gone && !p.revived);
+    if (!out.length || this.revivePool <= 0) return;
+    const p = out[0]; p.alive = 1; p.pts = 2; p.hand = []; p.miss = 0; p.revived = true; p.pw = this.pwOn ? [POWERS[rnd(POWERS.length)]] : []; this.revivePool--;
+    this.say(`✨ ${p.n} voltou ao jogo com 2 pontos!`);
+  }
+  hit(P, amount) { if (amount < 0 && P.shield) { P.shield = false; this.say(`🛡️ Escudo protegeu ${P.n}`); return; } P.pts += amount; }
+  usePower(id, k, m = {}) {
+    const P = this.ps[id], ph = this.phase, q = this.pend; if (!this.pwOn || !P || !P.alive || P.used || !P.pw.includes(k)) return;
+    const play = ph == 'play' && this.actor == id, decide = ['window','turn'].includes(ph) && this.actor == id;
+    if (['shield','gold','dbl','swap','shuf','wild','echo','freeze','double','mirror'].includes(k) && !play) return;
+    if (['spy','radar','gag','free','steal','vote'].includes(k) && !decide) return;
+    if (['spy','radar','gag','steal'].includes(k) && P.pts >= 8) return;
+    P.pw.splice(P.pw.indexOf(k),1); P.used = true; this.pwEvent = { n: (this.pwEvent?.n || 0) + 1, by:id, k, to:m.to, res:null };
+    if (k == 'shield') P.shield = true;
+    else if (k == 'gold') P.gold = true;
+    else if (k == 'dbl' || k == 'double') P.dbl = true;
+    else if (k == 'shuf') this.ref = 1 + rnd(13);
+    else if (k == 'swap' && P.hand[m.i|0]) { const old=P.hand[m.i|0]; P.hand[m.i|0]={v:1+rnd(13),s:rnd(4)}; }
+    else if (k == 'spy' && q) P.spy = q.card;
+    else if (k == 'radar' && q) { this.hit(P,-1); this.pwEvent.res = q.gold || truth(q); }
+    else if (k == 'gag' && q && this.ps[m.to]?.alive) this.ps[m.to].gagged = true;
+    else if (k == 'free' && ph == 'turn') { P.miss = 0; this.phase='play'; this.enterPlay(); }
+    else if (k == 'steal' && q) { this.hit(this.ps[q.p],-1); this.hit(P,1); }
+    else if (k == 'revive') this.offerRevive();
+    else if (k == 'chaos') this.event = EVENTS.find(e=>e.k=='chaos');
+    else if (k == 'freeze') this.dl += 5000;
+    else if (k == 'echo') P.pts += 1;
+    else if (k == 'wild') { P.gold = true; P.dbl = true; }
+    else if (k == 'mirror') P.shield = true;
+    else if (k == 'vote') { P.pts += 1; }
+    this.say(`${P.n} ativou um poder!`); this.emit();
+  }
   nudge(f, t) { this.nn++; this.nud = { n: this.nn, f, t }; this.say(`${this.ps[f].n} avisou ${this.ps[t].n}!`); this.emit(); }
 
   // Ação vinda de um celular. Tudo é validado aqui: o celular só "pede".
   act(id, m) {
     const P = this.ps[id]; if (!P) return;
-    if (m.a == 'start') { if (this.phase == 'lobby' && id == 0) this.start(+m.n, !!m.tut); return; }
+    if (m.a == 'start') { if (this.phase == 'lobby' && id == 0) this.start(+m.n, !!m.tut, m.pw !== false); return; }
     if (m.a == 'tut') { if (this.phase == 'tutorial' && id == 0 && [-1, 1, 99].includes(m.d)) this.tutGo(m.d); return; }
     if (m.a == 'lobby') { if (id == 0 && this.phase != 'lobby') this.again(); return; }
     if (m.a == 'again') { if (this.phase == 'over' && id == 0) this.again(); return; }
@@ -209,6 +250,8 @@ class Room {
       return;
     }
     if (m.a == 'challenge') { const to = m.to | 0; if (this.canChallenge(id, to)) this.startChallenge(id, to); return; }
+    if (m.a == 'power') { this.usePower(id, m.k, m); return; }
+    if (m.a == 'revive') { if (!P.alive && this.revivePool > 0) this.offerRevive(); return; }
     if (this.phase == 'challenge' && this.ch) {
       if (m.a == 'chdeck' && this.ch.tg == id) this.chDeck(m.d);
       else if (m.a == 'chguess' && this.ch.by == id) this.chGuess(m.n);
@@ -216,7 +259,7 @@ class Room {
     }
     if (this.actor != id || !P.alive) return;
     const ph = this.phase;
-    if (m.a == 'accuse' && (ph == 'window' || ph == 'turn') && this.pend) this.accuse(id);
+    if (m.a == 'accuse' && (ph == 'window' || ph == 'turn') && this.pend && !P.gagged) { P.gagged = false; this.accuse(id); }
     else if (m.a == 'pass' && (ph == 'window' || (ph == 'turn' && P.miss < 2))) this.pass();
     else if (m.a == 'play' && ph == 'play') {
       const i = m.i | 0, t = m.t, n = m.n | 0;
@@ -227,15 +270,15 @@ class Room {
   // O que cada tela pode ver. A TV nunca recebe mãos; cada celular só recebe a própria.
   view(id) {
     const v = {
-      code: this.code, phase: this.phase, tut: this.tut, ref: this.ref, actor: this.actor, log: this.log, win: this.win, nud: this.nud,
-      left: this.dl ? Math.max(0, this.dl - Date.now()) : 0,
+      code: this.code, phase: this.phase, tut: this.tut, ref: this.ref, actor: this.actor, log: this.log, win: this.win, nud: this.nud, pwOn:this.pwOn, event:this.event, eventN:this.eventN, pw:this.pwEvent,
+      left: this.dl ? Math.max(0, this.dl - Date.now()) : 0, duration:this.duration || 1,
       forced: this.phase == 'turn' && this.ps[this.actor] && this.ps[this.actor].miss >= 2,
-      ps: this.ps.map(p => ({ n: p.n, pts: p.pts, cards: p.hand.length, alive: p.alive, conn: p.conn, bot: p.bot })),
+      ps: this.ps.map(p => ({ n: p.n, pts: p.pts, cards: p.hand.length, alive: p.alive, conn: p.conn, bot: p.bot, revived:p.revived })),
       pend: this.pend && { p: this.pend.p, t: this.pend.t, n: this.pend.n },
       ch: this.ch && { by: this.ch.by, tg: this.ch.tg, step: this.ch.step, hits: this.ch.hits, guesses: this.ch.guesses, ok: this.ch.ok, deck: this.ch.step == 'done' ? this.ch.deck : null, pool: CH_POOL, need: CH_NEED, tries: CH_TRIES, size: CH_DECK, pts: CH_PTS },
       rev: this.rev && { card: this.rev.q.card, t: this.rev.q.t, n: this.rev.q.n, p: this.rev.q.p, ok: this.rev.ok, by: this.rev.by },
     };
-    if (id != null && this.ps[id]) v.me = { id, hand: this.ps[id].hand, miss: this.ps[id].miss, chDeck: this.ch && this.ch.tg == id ? this.ch.deck : null };
+    if (id != null && this.ps[id]) { const p=this.ps[id]; v.me = { id, hand:p.hand, miss:p.miss, pw:p.pw, used:p.used, gagged:p.gagged, shield:p.shield, spy:p.spy, chDeck: this.ch && this.ch.tg == id ? this.ch.deck : null }; }
     return v;
   }
 }
